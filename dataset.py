@@ -213,7 +213,7 @@ class VOCDataset:
 
 def collater(data):
 	imgs = [s['img'] for s in data]
-	annotations = [{"boxes": s['annot']} for s in data]
+	annotations = [{"boxes": s['annot'].cuda()} for s in data]
 	images = torch.stack(imgs)
 	images = images.permute(0,3,1,2)
-	return images, annotations
+	return images.cuda(), annotations

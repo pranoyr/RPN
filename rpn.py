@@ -202,8 +202,6 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 rpn.train()
 for i, data in enumerate(dataloader):
 	images, annotations = data
-	images = images.cuda()
-	annotations = annotations.cuda()
 	boxes, losses = rpn(images, annotations)
 	final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
 
