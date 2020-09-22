@@ -191,7 +191,7 @@ class RPN(nn.Module):
 		return boxes, losses
 
 
-rpn = RPN()
+rpn = RPN().cuda()
 optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=3, verbose=True)
@@ -202,7 +202,8 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 rpn.train()
 for i, data in enumerate(dataloader):
 	images, annotations = data
-	print(images.shape)
+	images = image.cuda()
+	annotations = annotations.cuda()
 	boxes, losses = rpn(images, annotations)
 	final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
 
