@@ -4,6 +4,7 @@ from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from dataset import VOCDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import os
 
 from collections import OrderedDict
 import random
@@ -194,7 +195,7 @@ class RPN(nn.Module):
 
 
 rpn = RPN().cuda()
-optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
+optimizer = optim.Adam(rpn.parameters(), lr=1e-3, weight_decay=4e-4)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, patience=3, verbose=True)
 # x = torch.Tensor(2, 3, 224, 224)
@@ -203,11 +204,14 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 # print(losses)
 n_epochs = 100
 rpn.train()
+
 for epoch in range(1, n_epochs+1):
+    losses = []
     for i, data in enumerate(dataloader):
         images, annotations = data
         boxes, losses = rpn(images, annotations)
         final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
+        losses.append(final_loss.item())
 
         optimizer.zero_grad()
         final_loss.backward()
@@ -215,3 +219,9 @@ for epoch in range(1, n_epochs+1):
         print(f'loss : {final_loss.item()},\n\
 				cls_loss : {losses["loss_objectness"].item()},\n\
 				reg_loss : {losses["loss_rpn_box_reg"]}')
+    scheduler.step(final_loss.mean())
+
+
+state = {'state_dict': rpn.state_dict()}
+torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
+print("model saved")
