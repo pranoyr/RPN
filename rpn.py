@@ -206,12 +206,12 @@ n_epochs = 100
 rpn.train()
 
 for epoch in range(1, n_epochs+1):
-    losses = []
+    loss = []
     for i, data in enumerate(dataloader):
         images, annotations = data
         boxes, losses = rpn(images, annotations)
         final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
-        losses.append(final_loss.item())
+        loss.append(final_loss.item())
 
         optimizer.zero_grad()
         final_loss.backward()
@@ -219,7 +219,7 @@ for epoch in range(1, n_epochs+1):
         print(f'loss : {final_loss.item()},\n\
 				cls_loss : {losses["loss_objectness"].item()},\n\
 				reg_loss : {losses["loss_rpn_box_reg"]}')
-    scheduler.step(final_loss.mean())
+    scheduler.step(torch.mean(loss))
 
 
 state = {'state_dict': rpn.state_dict()}
