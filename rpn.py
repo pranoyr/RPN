@@ -183,12 +183,12 @@ class RPN(nn.Module):
         # targets = [{"boxes":l},{"boxes":l}]
         # targets = [{i: index for i, index in enumerate(l)}]
         images, targets = self.transform(images, targets)
-        fpn_feature_maps = self.fpn(images.tensors.cuda())
+        fpn_feature_maps = self.fpn(images.tensors)
         fpn_feature_maps = OrderedDict(
             {i: index for i, index in enumerate(fpn_feature_maps)})
 
         if self.training:
-            boxes, losses = self.rpn(images, fpn_feature_maps, targets.cuda())
+            boxes, losses = self.rpn(images, fpn_feature_maps, targets)
         else:
             boxes, losses = self.rpn(images, fpn_feature_maps)
         return boxes, losses
