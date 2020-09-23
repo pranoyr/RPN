@@ -270,3 +270,8 @@ def resnet152(num_classes, pretrained=False, **kwargs):
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152'], model_dir='.'), strict=False)
     return model
 
+
+fpn = resnet101(num_classes=1)
+x = torch.Tensor(2,3,224,224)
+x = fpn(x)
+print(x[2].shape)

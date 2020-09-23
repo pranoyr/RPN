@@ -145,7 +145,7 @@ class RPN(nn.Module):
         # Define FPN
         self.fpn = resnet101(num_classes=1)
         # Generate anchor boxes
-        anchor_generator = AnchorGenerator(sizes=(256, 256, 256))
+        anchor_generator = AnchorGenerator(sizes=(256, 256, 256, 256, 256))
         # Define RPN Head
         # rpn_head = RPNHead(256, 9)
         print(anchor_generator.num_anchors_per_location()[0])
