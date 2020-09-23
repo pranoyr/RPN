@@ -189,8 +189,8 @@ class RPN(nn.Module):
         # targets = [{i: index for i, index in enumerate(l)}]
         images, targets = self.transform(images, targets)
         fpn_feature_maps = self.fpn(images.tensors.cuda())
-        fpn_feature_maps = OrderedDict(
-            {i: index for i, index in enumerate(fpn_feature_maps)})
+        # fpn_feature_maps = OrderedDict(
+        #     {i: index for i, index in enumerate(fpn_feature_maps)})
         
         # fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
 
