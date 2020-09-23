@@ -219,6 +219,8 @@ for epoch in range(1, n_epochs+1):
         print(f'loss : {final_loss.item()},\n\
 				cls_loss : {losses["loss_objectness"].item()},\n\
 				reg_loss : {losses["loss_rpn_box_reg"]}')
+
+    loss = torch.tensor(loss, dtype=torch.float32)
     scheduler.step(torch.mean(loss))
 
 
