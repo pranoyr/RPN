@@ -198,11 +198,10 @@ class VOCDataset:
 
 	def load_image(self, image_id):
 		image_file = self.root / f"JPEGImages/{image_id}.jpg"
-		img = skimage.io.imread(image_file)
-		if len(img.shape) == 2:
-			img = skimage.color.gray2rgb(img)
-
-		return img.astype(np.float32)/255.0
+		img = Image.open(image_file)
+		img = torch.from_numpy(np.asarray(img))
+		img = img.permute(2,0,1)
+		return img/255.0
 
 	def image_aspect_ratio(self, index):
 		image_id = self.ids[index]
@@ -212,8 +211,6 @@ class VOCDataset:
 
 
 def collater(data):
-	imgs = [s['img'] for s in data]
+	imgs = [s['img'].cuda() for s in data]
 	annotations = [{"boxes": s['annot'].cuda()} for s in data]
-	images = torch.stack(imgs)
-	images = images.permute(0,3,1,2)
-	return images.cuda(), annotations
+	return images, annotations
