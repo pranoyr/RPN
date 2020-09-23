@@ -215,7 +215,7 @@ for epoch in range(1, n_epochs+1):
 
         optimizer.zero_grad()
         final_loss.backward()
-        # optimizer.step()
+        optimizer.step()
         print(f'loss : {final_loss.item()},\n\
 				cls_loss : {losses["loss_objectness"].item()},\n\
 				reg_loss : {losses["loss_rpn_box_reg"].item()}')
