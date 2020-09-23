@@ -142,7 +142,7 @@ class RPN(nn.Module):
     def __init__(self):
         super(RPN, self).__init__()
         # Define FPN
-        self.fpn = resnet101
+        self.fpn = resnet101(num_classes=1)
         # Define RPN Head
         rpn_head = RPNHead(256, 9)
         # Generate anchor boxes
