@@ -1,6 +1,7 @@
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 from dataset import VOCDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
@@ -143,7 +144,7 @@ class RPN(nn.Module):
     def __init__(self):
         super(RPN, self).__init__()
         # Define FPN
-        self.fpn = resnet101(num_classes=1)
+        self.fpn = resnet_fpn_backbone(backbone_name='resnet101')
         # Generate anchor boxes
         anchor_generator = AnchorGenerator(sizes=(256, 256, 256, 256, 256))
         # Define RPN Head
