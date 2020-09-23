@@ -144,7 +144,7 @@ class RPN(nn.Module):
     def __init__(self):
         super(RPN, self).__init__()
         # Define FPN
-        self.fpn = resnet_fpn_backbone(backbone_name='resnet101')
+        self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
         # Generate anchor boxes
         anchor_generator = AnchorGenerator(sizes=(256, 256, 256, 256, 256))
         # Define RPN Head
