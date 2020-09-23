@@ -216,15 +216,15 @@ for epoch in range(1, n_epochs+1):
         optimizer.zero_grad()
         final_loss.backward()
         optimizer.step()
-        # print(f'loss : {final_loss.item()},\n\
-		# 		cls_loss : {losses["loss_objectness"].item()},\n\
-		# 		reg_loss : {losses["loss_rpn_box_reg"]}')
+        print(f'loss : {final_loss.item()},\n\
+				cls_loss : {losses["loss_objectness"].item()},\n\
+				reg_loss : {losses["loss_rpn_box_reg"]}')
 
     loss = torch.tensor(loss, dtype=torch.float32)
     print(f'loss : {torch.mean(loss)}')
     scheduler.step(torch.mean(loss))
 
 
-state = {'state_dict': rpn.state_dict()}
-torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
-print("model saved")
+    state = {'state_dict': rpn.state_dict()}
+    torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
+    print("model saved")
