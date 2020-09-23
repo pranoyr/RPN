@@ -195,7 +195,7 @@ class RPN(nn.Module):
 
 
 rpn = RPN().cuda()
-optimizer = optim.Adam(rpn.parameters(), lr=1e-3, weight_decay=4e-4)
+optimizer = optim.Adam(rpn.parameters(), lr=1e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, patience=3, verbose=True)
 # x = torch.Tensor(2, 3, 224, 224)
