@@ -209,7 +209,13 @@ class VOCDataset:
 		return float(image.width) / float(image.height)
 
 
+# def collater(data):
+# 	imgs = [s['img'] for s in data]
+# 	annotations = [{"boxes": s['annot'].cuda()} for s in data]
+# 	return imgs, annotations
+
 def collater(data):
 	imgs = [s['img'] for s in data]
-	annotations = [{"boxes": s['annot'].cuda()} for s in data]
+	annotations = [{"boxes": s['annot']} for s in data]
 	return imgs, annotations
+

@@ -22,6 +22,7 @@ import pdb
 from torchvision.models.resnet import resnet101
 import torchvision
 import math
+from fpn import resnet101
 
 
 class FPN(nn.Module):
@@ -141,11 +142,11 @@ class RPN(nn.Module):
     def __init__(self):
         super(RPN, self).__init__()
         # Define FPN
-        self.fpn = FPN()
+        self.fpn = resnet101
         # Define RPN Head
         rpn_head = RPNHead(256, 9)
         # Generate anchor boxes
-        anchor_generator = AnchorGenerator(sizes=(256, 256, 256, 265, 256))
+        anchor_generator = AnchorGenerator(sizes=(256, 256, 256))
 
         # RPN parameters,
         rpn_pre_nms_top_n_train = 2000
@@ -186,6 +187,8 @@ class RPN(nn.Module):
         fpn_feature_maps = self.fpn(images.tensors.cuda())
         fpn_feature_maps = OrderedDict(
             {i: index for i, index in enumerate(fpn_feature_maps)})
+        
+        # fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
 
         if self.training:
             boxes, losses = self.rpn(images, fpn_feature_maps, targets)
