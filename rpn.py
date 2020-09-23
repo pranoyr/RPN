@@ -134,6 +134,7 @@ class FPN(nn.Module):
 
 
 dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
+# dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
 dataloader = DataLoader(
     dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
@@ -147,6 +148,7 @@ class RPN(nn.Module):
         anchor_generator = AnchorGenerator(sizes=(256, 256, 256))
         # Define RPN Head
         # rpn_head = RPNHead(256, 9)
+        print(anchor_generator.num_anchors_per_location()[0])
         rpn_head = RPNHead(
                 256, anchor_generator.num_anchors_per_location()[0]
             )
