@@ -210,6 +210,6 @@ class VOCDataset:
 
 
 def collater(data):
-	imgs = [s['img'].cuda() for s in data]
-	annotations = [{"boxes": s['annot'].cuda()} for s in data]
+	imgs = [s['img'] for s in data]
+	annotations = [{"boxes": s['annot']} for s in data]
 	return imgs, annotations
