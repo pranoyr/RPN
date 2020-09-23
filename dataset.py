@@ -200,7 +200,7 @@ class VOCDataset:
 		img = Image.open(image_file)
 		img = torch.from_numpy(np.asarray(img))
 		img = img.permute(2,0,1)
-		return img/255.0
+		return img
 
 	def image_aspect_ratio(self, index):
 		image_id = self.ids[index]
