@@ -183,7 +183,7 @@ class RPN(nn.Module):
         # targets = [{"boxes":l},{"boxes":l}]
         # targets = [{i: index for i, index in enumerate(l)}]
         images, targets = self.transform(images, targets)
-        fpn_feature_maps = self.fpn(images.tensors)
+        fpn_feature_maps = self.fpn(images.tensors.cuda())
         fpn_feature_maps = OrderedDict(
             {i: index for i, index in enumerate(fpn_feature_maps)})
 
@@ -211,7 +211,7 @@ for epoch in range(1, n_epochs+1):
         images, annotations = data
         boxes, losses = rpn(images, annotations)
         final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
-        # loss.append(final_loss.item())
+        loss.append(final_loss.item())
 
         optimizer.zero_grad()
         final_loss.backward()
@@ -220,9 +220,9 @@ for epoch in range(1, n_epochs+1):
 				cls_loss : {losses["loss_objectness"].item()},\n\
 				reg_loss : {losses["loss_rpn_box_reg"].item()}')
 
-    # loss = torch.tensor(loss, dtype=torch.float32)
-    # print(f'loss : {torch.mean(loss)}')
-    # scheduler.step(torch.mean(loss))
+    loss = torch.tensor(loss, dtype=torch.float32)
+    print(f'loss : {torch.mean(loss)}')
+    scheduler.step(torch.mean(loss))
 
 
     state = {'state_dict': rpn.state_dict()}
