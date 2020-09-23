@@ -222,7 +222,7 @@ for epoch in range(1, n_epochs+1):
 
     loss = torch.tensor(loss, dtype=torch.float32)
     print(f'loss : {torch.mean(loss)}')
-    scheduler.step(torch.mean(loss))
+    # scheduler.step(torch.mean(loss))
 
 
     state = {'state_dict': rpn.state_dict()}
