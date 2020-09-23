@@ -271,7 +271,7 @@ def resnet152(num_classes, pretrained=False, **kwargs):
     return model
 
 
-fpn = resnet101(num_classes=1)
-x = torch.Tensor(2,3,224,224)
-x = fpn(x)
-print(x[2].shape)
+# fpn = resnet101(num_classes=1)
+# x = torch.Tensor(2,3,224,224)
+# x = fpn(x)
+# print(x[2].shape)
