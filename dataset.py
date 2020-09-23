@@ -146,7 +146,6 @@ class VOCDataset:
 		# 	boxes = boxes[is_difficult == 0]
 		# 	labels = labels[is_difficult == 0]
 		img = self.load_image(image_id)
-		img = torch.from_numpy(img)
 		sample = {'img': img, 'annot': boxes}
 		# if self.transform:
 		# 	sample = self.transform(sample)
