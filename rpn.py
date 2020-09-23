@@ -188,7 +188,7 @@ class RPN(nn.Module):
             {i: index for i, index in enumerate(fpn_feature_maps)})
 
         if self.training:
-            boxes, losses = self.rpn(images, fpn_feature_maps, targets)
+            boxes, losses = self.rpn(images, fpn_feature_maps, targets.cuda())
         else:
             boxes, losses = self.rpn(images, fpn_feature_maps)
         return boxes, losses
