@@ -143,11 +143,13 @@ class RPN(nn.Module):
         super(RPN, self).__init__()
         # Define FPN
         self.fpn = resnet101(num_classes=1)
-        # Define RPN Head
-        rpn_head = RPNHead(256, 9)
         # Generate anchor boxes
         anchor_generator = AnchorGenerator(sizes=(256, 256, 256))
-
+        # Define RPN Head
+        # rpn_head = RPNHead(256, 9)
+        rpn_head = RPNHead(
+                256, anchor_generator.num_anchors_per_location()[0]
+            )
         # RPN parameters,
         rpn_pre_nms_top_n_train = 2000
         rpn_pre_nms_top_n_test = 1000
