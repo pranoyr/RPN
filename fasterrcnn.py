@@ -235,9 +235,9 @@ class RPN(nn.Module):
 			original_image_sizes.append((val[0], val[1]))
 		
 
-		# images, targets = self.transform(images, targets)
+		images, targets = self.transform(images, targets)
 		fpn_feature_maps = self.fpn(images.tensors.cuda())
-		fpn_feature_maps = self.fpn(images.tensors)
+		# fpn_feature_maps = self.fpn(images.tensors)
 		
 		
 
