@@ -136,8 +136,8 @@ from fpn import resnet101
 		# mrcnn_feature_maps = [p2, p3, p4, p5]
 
 
-# dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
-dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
+dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
+# dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
 dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
