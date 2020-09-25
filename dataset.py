@@ -67,7 +67,7 @@ class VOCDataset:
 
 		else:
 			print("No labels file, using default VOC classes.")
-			self.class_names = ('aeroplane', 'bicycle', 'bird', 'boat',
+			self.class_names = ('__background__','aeroplane', 'bicycle', 'bird', 'boat',
 								'bottle', 'bus', 'car', 'cat', 'chair',
 								'cow', 'diningtable', 'dog', 'horse',
 								'motorbike', 'person', 'pottedplant',
@@ -146,7 +146,7 @@ class VOCDataset:
 		# 	boxes = boxes[is_difficult == 0]
 		# 	labels = labels[is_difficult == 0]
 		img = self.load_image(image_id)
-		sample = {'img': img, 'annot': boxes}
+		sample = {'img': img, 'annot': boxes, 'labels':labels}
 		# if self.transform:
 		# 	sample = self.transform(sample)
 
@@ -198,7 +198,7 @@ class VOCDataset:
 	def load_image(self, image_id):
 		image_file = self.root / f"JPEGImages/{image_id}.jpg"
 		img = Image.open(image_file)
-		img = torch.from_numpy(np.asarray(img))
+		img = torch.from_numpy(np.array(img))
 		img = img.permute(2,0,1)
 		img = img.type(torch.float32)
 		return img
@@ -210,13 +210,16 @@ class VOCDataset:
 		return float(image.width) / float(image.height)
 
 
-def collater(data):
-	imgs = [s['img'] for s in data]
-	annotations = [{"boxes": s['annot'].cuda()} for s in data]
-	return imgs, annotations
-
 # def collater(data):
 # 	imgs = [s['img'] for s in data]
-# 	annotations = [{"boxes": s['annot']} for s in data]
+# 	annotations = [{"boxes": s['annot'].cuda()} for s in data]
 # 	return imgs, annotations
+
+def collater(data):
+	imgs = [s['img'] for s in data]
+	annotations = [{"boxes": s['annot']} for s in data]
+	for i, s in enumerate(data):
+		annotations[i]['labels'] = s['labels'].type(torch.int64)
+	# labels = [{"labels": s['labels']} for s in data]
+	return imgs, annotations
 

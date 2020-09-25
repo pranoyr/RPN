@@ -1,10 +1,11 @@
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
 from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
-from dataset import VOCDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import os
+from PIL import Image
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 
 from collections import OrderedDict
 import random
@@ -25,134 +26,42 @@ import math
 import cv2
 
 
-class FPN(nn.Module):
-	""" FPN """
 
-	def __init__(self):
-		super(FPN, self).__init__()
-		resnet = resnet101(pretrained=True)
-
-		# if self.pretrained == True:
-		#     print("Loading pretrained weights from %s" %(self.model_path))
-		#     state_dict = torch.load(self.model_path)
-		#     resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()})
-
-		self.RCNN_layer0 = nn.Sequential(
-			resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool)
-		self.RCNN_layer1 = nn.Sequential(resnet.layer1)
-		self.RCNN_layer2 = nn.Sequential(resnet.layer2)
-		self.RCNN_layer3 = nn.Sequential(resnet.layer3)
-		self.RCNN_layer4 = nn.Sequential(resnet.layer4)
-		self.maxpool2d = nn.MaxPool2d(1, stride=2)
-
-		# Top layer
-		self.RCNN_toplayer = nn.Conv2d(
-			2048, 256, kernel_size=1, stride=1, padding=0)  # reduce channel
-
-		# Smooth layers
-		self.RCNN_smooth1 = nn.Conv2d(
-			256, 256, kernel_size=3, stride=1, padding=1)
-		self.RCNN_smooth2 = nn.Conv2d(
-			256, 256, kernel_size=3, stride=1, padding=1)
-		self.RCNN_smooth3 = nn.Conv2d(
-			256, 256, kernel_size=3, stride=1, padding=1)
-
-		# Lateral layers
-		self.RCNN_latlayer1 = nn.Conv2d(
-			1024, 256, kernel_size=1, stride=1, padding=0)
-		self.RCNN_latlayer2 = nn.Conv2d(
-			512, 256, kernel_size=1, stride=1, padding=0)
-		self.RCNN_latlayer3 = nn.Conv2d(
-			256, 256, kernel_size=1, stride=1, padding=0)
-
-	def _init_weights(self):
-		def normal_init(m, mean, stddev, truncated=False):
-			"""
-			weight initalizer: truncated normal and random normal.
-			"""
-			# x is a parameter
-			if truncated:
-				m.weight.data.normal_().fmod_(2).mul_(stddev).add_(
-					mean)  # not a perfect approximation
-			else:
-				m.weight.data.normal_(mean, stddev)
-				m.bias.data.zero_()
-
-		normal_init(self.RCNN_toplayer, 0, 0.01, False)
-		normal_init(self.RCNN_smooth1, 0, 0.01, False)
-		normal_init(self.RCNN_smooth2, 0, 0.01, False)
-		normal_init(self.RCNN_smooth3, 0, 0.01, False)
-		normal_init(self.RCNN_latlayer1, 0, 0.01, False)
-		normal_init(self.RCNN_latlayer2, 0, 0.01, False)
-		normal_init(self.RCNN_latlayer3, 0, 0.01, False)
-
-	def create_architecture(self):
-		self._init_modules()
-		self._init_weights()
-
-	def _upsample_add(self, x, y):
-		'''Upsample and add two feature maps.
-		Args:
-		  x: (Variable) top feature map to be upsampled.
-		  y: (Variable) lateral feature map.
-		Returns:
-		  (Variable) added feature map.
-		Note in PyTorch, when input size is odd, the upsampled feature map
-		with `F.upsample(..., scale_factor=2, mode='nearest')`
-		maybe not equal to the lateral feature map size.
-		e.g.
-		original input size: [N,_,15,15] ->
-		conv2d feature map size: [N,_,8,8] ->
-		upsampled feature map size: [N,_,16,16]
-		So we choose bilinear upsample which supports arbitrary output sizes.
-		'''
-		_, _, H, W = y.size()
-		return F.upsample(x, size=(H, W), mode='bilinear') + y
-
-	def forward(self, im_data):
-		# feed image data to base model to obtain base feature map
-		# Bottom-up
-		c1 = self.RCNN_layer0(im_data)
-		c2 = self.RCNN_layer1(c1)
-		c3 = self.RCNN_layer2(c2)
-		c4 = self.RCNN_layer3(c3)
-		c5 = self.RCNN_layer4(c4)
-		# Top-down
-		p5 = self.RCNN_toplayer(c5)
-		p4 = self._upsample_add(p5, self.RCNN_latlayer1(c4))
-		p4 = self.RCNN_smooth1(p4)
-		p3 = self._upsample_add(p4, self.RCNN_latlayer2(c3))
-		p3 = self.RCNN_smooth2(p3)
-		p2 = self._upsample_add(p3, self.RCNN_latlayer3(c2))
-		p2 = self.RCNN_smooth3(p2)
-
-		p6 = self.maxpool2d(p5)
-
-		rpn_feature_maps = [p2, p3, p4, p5, p6]
-		return rpn_feature_maps
-		# mrcnn_feature_maps = [p2, p3, p4, p5]
+def resize_boxes(boxes, original_size, new_size):
+	ratios = [
+		torch.tensor(s, dtype=torch.float32, device=boxes.device) /
+		torch.tensor(s_orig, dtype=torch.float32, device=boxes.device)
+		for s, s_orig in zip(new_size, original_size)
+	]
+	ratio_height, ratio_width = ratios
+	xmin, ymin, xmax, ymax = boxes.unbind(1)
 
 
-dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
-dataloader = DataLoader(
-	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
+	xmin = xmin /ratio_width
+	xmax = xmax / ratio_width
+	ymin = ymin / ratio_height
+	ymax = ymax / ratio_height
+	return torch.stack((xmin, ymin, xmax, ymax), dim=1)
+
 
 
 class RPN(nn.Module):
 	def __init__(self):
 		super(RPN, self).__init__()
 		# Define FPN
-		self.fpn = FPN()
-		# Define RPN Head
-		rpn_head = RPNHead(256, 9)
+		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
+		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+		aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
 		# Generate anchor boxes
-		anchor_generator = AnchorGenerator(sizes=(256, 256, 256, 265, 256))
-
+		anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+		# Define RPN Head
+		# rpn_head = RPNHead(256, 9)
+		rpn_head = RPNHead(256, anchor_generator.num_anchors_per_location()[0])
 		# RPN parameters,
 		rpn_pre_nms_top_n_train = 2000
 		rpn_pre_nms_top_n_test = 1000
 		rpn_post_nms_top_n_train = 2000
-		rpn_post_nms_top_n_test = 1000
+		rpn_post_nms_top_n_test = 10
 		rpn_nms_thresh = 0.7
 		rpn_fg_iou_thresh = 0.7
 		rpn_bg_iou_thresh = 0.3
@@ -183,27 +92,31 @@ class RPN(nn.Module):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
+		original_shape = [images[0].shape[1],images[0].shape[2]]
 		images, targets = self.transform(images, targets)
 		fpn_feature_maps = self.fpn(images.tensors)
-		fpn_feature_maps = OrderedDict(
-			{i: index for i, index in enumerate(fpn_feature_maps)})
+
+		new_shapes = [images.image_sizes[0][0], images.image_sizes[0][1]]
+	
+		print(original_shape)
+		print(new_shapes)
+
+		# fpn_feature_maps = OrderedDict(
+		#     {i: index for i, index in enumerate(fpn_feature_maps)})
+		
+		# fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
 
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
 		else:
 			boxes, losses = self.rpn(images, fpn_feature_maps)
+			# boxes = boxes[0]
+			boxes = resize_boxes(boxes[0], original_shape, new_shapes)
+			# boxes = torch.tensor(new_boxes, dtype=torch.float)
 		return boxes, losses
 
 
 rpn = RPN()
-optimizer = optim.Adam(rpn.parameters(), lr=1e-3)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-	optimizer, patience=3, verbose=True)
-# x = torch.Tensor(2, 3, 224, 224)
-# boxes, losses = rpn(x)
-# print(boxes)
-# print(losses)
-n_epochs = 100
 
 
 # load pretrained weights
@@ -213,12 +126,21 @@ print("Model Restored")
 
 rpn.eval()
 
-for i, data in enumerate(dataloader):
-	images, annotations = data
-	img = images[0].permute(1,2,0).numpy()
-	boxes, losses = rpn(images, annotations)
-	# for box in boxes[0]:
-	# 	cv2.rectangle(img, (box[0],  box[1])  ,(box[2],  box[3]), (255, 255, 0), 4)
-	# cv2.imshow('window', img)
-	# cv2.waitKey(0)
-	break
+
+im = Image.open('/Users/pranoyr/Downloads/aa.jpeg')
+img = np.array(im)
+draw = img.copy()
+# draw = cv2.resize(draw,(1344,768))
+img = torch.from_numpy(img)
+img = img.permute(2,0,1)
+img = img.type(torch.float32)
+
+boxes, losses = rpn([img])
+
+print(boxes.shape)
+boxes = boxes.type(torch.int)
+for box in boxes:
+	cv2.rectangle(draw, (box[0].item(),  box[1].item())  ,(box[2].item(),  box[3].item()), (255, 255, 0), 4)
+cv2.imwrite('a.jpg', draw)
+
+

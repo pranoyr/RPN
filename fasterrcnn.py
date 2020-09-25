@@ -5,7 +5,9 @@ from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from dataset import VOCDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
+from torchvision.models.detection.faster_rcnn import MultiScaleRoIAlign, TwoMLPHead, FastRCNNPredictor, RoIHeads 
 import os
+from torch.jit.annotations import List, Tuple, Dict, Optional
 
 from collections import OrderedDict
 import random
@@ -182,24 +184,74 @@ class RPN(nn.Module):
 			rpn_fg_iou_thresh, rpn_bg_iou_thresh,
 			rpn_batch_size_per_image, rpn_positive_fraction,
 			rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh)
+		
+		# Box parameters
+		box_roi_pool=None
+		box_head=None
+		box_predictor=None
+		box_score_thresh=0.05
+		box_nms_thresh=0.5
+		box_detections_per_img=100
+		box_fg_iou_thresh=0.5
+		box_bg_iou_thresh=0.5
+		box_batch_size_per_image=512
+		box_positive_fraction=0.25
+		bbox_reg_weights=None
+		num_classes=21
+
+		if box_roi_pool is None:
+			box_roi_pool = MultiScaleRoIAlign(
+				featmap_names=['0', '1', '2', '3'],
+				output_size=7,
+				sampling_ratio=2)
+
+		if box_head is None:
+			resolution = box_roi_pool.output_size[0]
+			representation_size = 1024
+			box_head = TwoMLPHead(
+				256 * resolution ** 2,
+				representation_size)
+
+		if box_predictor is None:
+			representation_size = 1024
+			box_predictor = FastRCNNPredictor(
+				representation_size,
+				num_classes)
+
+		self.roi_heads = RoIHeads(
+			# Box
+			box_roi_pool, box_head, box_predictor,
+			box_fg_iou_thresh, box_bg_iou_thresh,
+			box_batch_size_per_image, box_positive_fraction,
+			bbox_reg_weights,
+			box_score_thresh, box_nms_thresh, box_detections_per_img)
 
 	def forward(self, images, targets=None):
-		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
-		# targets = [{"boxes":l},{"boxes":l}]
-		# targets = [{i: index for i, index in enumerate(l)}]
+			
+		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
+		for img in images:
+			val = img.shape[-2:]
+			assert len(val) == 2
+			original_image_sizes.append((val[0], val[1]))
+		
+
 		images, targets = self.transform(images, targets)
 		# fpn_feature_maps = self.fpn(images.tensors.cuda())
 		fpn_feature_maps = self.fpn(images.tensors)
-		# fpn_feature_maps = OrderedDict(
-		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
-		# fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
+		
 
 		if self.training:
-			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
+			proposals, proposal_losses = self.rpn(images, fpn_feature_maps, targets)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			losses = {}
+			losses.update(detector_losses)
+			losses.update(proposal_losses)
 		else:
-			boxes, losses = self.rpn(images, fpn_feature_maps)
-		return boxes, losses
+			detections, losses = self.rpn(images, fpn_feature_maps)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+		return detections, losses
 
 
 # rpn = RPN().cuda()
@@ -219,18 +271,23 @@ for epoch in range(1, n_epochs+1):
 	for i, data in enumerate(dataloader):
 		images, annotations = data
 		boxes, losses = rpn(images, annotations)
-		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"]
+		print(losses)
+		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + \
+		losses['loss_box_reg'] + losses['loss_classifier']
 		loss.append(final_loss.item())
 
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
-		print(f'loss : {final_loss.item()},\n\
-				cls_loss : {losses["loss_objectness"].item()},\n\
-				reg_loss : {losses["loss_rpn_box_reg"].item()}')
+		print(f'RCNN_Loss   : {final_loss.item()},\n\
+				rpn_cls_loss : {losses["loss_objectness"].item()},\n\
+				rpn_reg_loss : {losses["loss_rpn_box_reg"].item()}\n\
+				box_loss 	 : {losses["loss_box_reg"]}\n\
+				cls_loss     : {losses["loss_classifier"]}'
+				)
 
 	loss = torch.tensor(loss, dtype=torch.float32)
-	print(f'loss : {torch.mean(loss)}')
+	print(f'Total Loss : {torch.mean(loss)}')
 	# scheduler.step(torch.mean(loss))
 
 
