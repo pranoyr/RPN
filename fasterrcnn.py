@@ -235,8 +235,8 @@ class RPN(nn.Module):
 			original_image_sizes.append((val[0], val[1]))
 		
 
-		images, targets = self.transform(images, targets)
-		# fpn_feature_maps = self.fpn(images.tensors.cuda())
+		# images, targets = self.transform(images, targets)
+		fpn_feature_maps = self.fpn(images.tensors.cuda())
 		fpn_feature_maps = self.fpn(images.tensors)
 		
 		
@@ -254,8 +254,8 @@ class RPN(nn.Module):
 		return detections, losses
 
 
-# rpn = RPN().cuda()
-rpn = RPN()
+rpn = RPN().cuda()
+# rpn = RPN()
 optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 	optimizer, patience=3, verbose=True)
@@ -279,7 +279,7 @@ for epoch in range(1, n_epochs+1):
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
-		print(f'RCNN_Loss   : {final_loss.item()},\n\
+		print(f'RCNN_Loss    : {final_loss.item()},\n\
 				rpn_cls_loss : {losses["loss_objectness"].item()},\n\
 				rpn_reg_loss : {losses["loss_rpn_box_reg"].item()}\n\
 				box_loss 	 : {losses["loss_box_reg"]}\n\
