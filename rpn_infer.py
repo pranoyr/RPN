@@ -6,7 +6,7 @@ import torch.optim as optim
 import os
 from PIL import Image
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
-
+from torch.jit.annotations import List, Tuple, Dict, Optional
 from collections import OrderedDict
 import random
 import torch
@@ -61,7 +61,7 @@ class RPN(nn.Module):
 		rpn_pre_nms_top_n_train = 2000
 		rpn_pre_nms_top_n_test = 1000
 		rpn_post_nms_top_n_train = 2000
-		rpn_post_nms_top_n_test = 10
+		rpn_post_nms_top_n_test = 6
 		rpn_nms_thresh = 0.7
 		rpn_fg_iou_thresh = 0.7
 		rpn_bg_iou_thresh = 0.3
@@ -92,15 +92,16 @@ class RPN(nn.Module):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
-		original_shape = [images[0].shape[1],images[0].shape[2]]
+		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
+		for img in images:
+			val = img.shape[-2:]
+			assert len(val) == 2
+			original_image_sizes.append((val[0], val[1]))
+
 		images, targets = self.transform(images, targets)
 		fpn_feature_maps = self.fpn(images.tensors)
 
-		new_shapes = [images.image_sizes[0][0], images.image_sizes[0][1]]
 	
-		print(original_shape)
-		print(new_shapes)
-
 		# fpn_feature_maps = OrderedDict(
 		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
@@ -110,9 +111,8 @@ class RPN(nn.Module):
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
 		else:
 			boxes, losses = self.rpn(images, fpn_feature_maps)
-			# boxes = boxes[0]
-			boxes = resize_boxes(boxes[0], original_shape, new_shapes)
-			# boxes = torch.tensor(new_boxes, dtype=torch.float)
+			for org_size, tar_size in zip(original_image_sizes, images.image_sizes):
+				boxes = resize_boxes(boxes[0], org_size, tar_size)
 		return boxes, losses
 
 
@@ -120,14 +120,14 @@ rpn = RPN()
 
 
 # load pretrained weights
-checkpoint = torch.load('/Users/pranoyr/Downloads/rpn.pth', map_location='cpu')
-rpn.load_state_dict(checkpoint['state_dict'])
+checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+rpn.load_state_dict(checkpoint['state_dict'], strict=False)
 print("Model Restored")
 
 rpn.eval()
 
 
-im = Image.open('/Users/pranoyr/Downloads/aa.jpeg')
+im = Image.open('/Users/pranoyr/Downloads/sample.png')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))
@@ -141,6 +141,6 @@ print(boxes.shape)
 boxes = boxes.type(torch.int)
 for box in boxes:
 	cv2.rectangle(draw, (box[0].item(),  box[1].item())  ,(box[2].item(),  box[3].item()), (255, 255, 0), 4)
-cv2.imwrite('a.jpg', draw)
+cv2.imwrite('./results/rpn_sample.jpg', draw)
 
 

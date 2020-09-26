@@ -1,5 +1,5 @@
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
-from torchvision.models.detection.faster_rcnn import FasterRCNN
+# from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 from dataset import VOCDataset, collater
@@ -142,9 +142,9 @@ dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-class RPN(nn.Module):
+class FasterRCNN(nn.Module):
 	def __init__(self):
-		super(RPN, self).__init__()
+		super(FasterRCNN, self).__init__()
 		# Define FPN
 		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
@@ -159,9 +159,12 @@ class RPN(nn.Module):
 		rpn_pre_nms_top_n_test = 1000
 		rpn_post_nms_top_n_train = 2000
 		rpn_post_nms_top_n_test = 1000
-		rpn_nms_thresh = 0.7
-		rpn_fg_iou_thresh = 0.7
-		rpn_bg_iou_thresh = 0.3
+		# rpn_nms_thresh = 0.7
+		# rpn_fg_iou_thresh = 0.7
+		# rpn_bg_iou_thresh = 0.3
+		rpn_nms_thresh = 0.45
+		rpn_fg_iou_thresh = 0.5
+		rpn_bg_iou_thresh = 0.5
 		rpn_batch_size_per_image = 256
 		rpn_positive_fraction = 0.5
 
@@ -254,9 +257,9 @@ class RPN(nn.Module):
 		return detections, losses
 
 
-rpn = RPN().cuda()
+faster_rcnn = FasterRCNN().cuda()
 # rpn = RPN()
-optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
+optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 	optimizer, patience=3, verbose=True)
 # x = torch.Tensor(2, 3, 224, 224)
@@ -264,13 +267,13 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 # print(boxes)
 # print(losses)
 n_epochs = 100
-rpn.train()
+faster_rcnn.train()
 
 for epoch in range(1, n_epochs+1):
 	loss = []
 	for i, data in enumerate(dataloader):
 		images, annotations = data
-		boxes, losses = rpn(images, annotations)
+		boxes, losses = faster_rcnn(images, annotations)
 		print(losses)
 		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + \
 		losses['loss_box_reg'] + losses['loss_classifier']
@@ -291,7 +294,7 @@ for epoch in range(1, n_epochs+1):
 	# scheduler.step(torch.mean(loss))
 
 
-	state = {'state_dict': rpn.state_dict()}
+	state = {'state_dict': faster_rcnn.state_dict()}
 	torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
 	print("model saved")
 
