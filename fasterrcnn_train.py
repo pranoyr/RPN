@@ -168,7 +168,6 @@ for epoch in range(1, n_epochs+1):
 	for i, data in enumerate(dataloader):
 		images, annotations = data
 		boxes, losses = faster_rcnn(images, annotations)
-		print(losses)
 		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + \
 		losses['loss_box_reg'] + losses['loss_classifier']
 		loss.append(final_loss.item())
