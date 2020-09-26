@@ -31,6 +31,7 @@ dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
 dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class RPN(nn.Module):
 	def __init__(self):
@@ -80,8 +81,7 @@ class RPN(nn.Module):
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
 		images, targets = self.transform(images, targets)
-		fpn_feature_maps = self.fpn(images.tensors.cuda())
-		# fpn_feature_maps = self.fpn(images.tensors)
+		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		# fpn_feature_maps = OrderedDict(
 		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
@@ -94,8 +94,7 @@ class RPN(nn.Module):
 		return boxes, losses
 
 
-rpn = RPN().cuda()
-# rpn = RPN()
+rpn = RPN().to(DEVICE)
 optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 	optimizer, patience=3, verbose=True)

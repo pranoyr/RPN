@@ -216,9 +216,12 @@ class VOCDataset:
 # 	return imgs, annotations
 
 
+
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def collater(data):
 	imgs = [s['img'] for s in data]
-	annotations = [{"boxes": s['annot'].cuda()} for s in data]
+	annotations = [{"boxes": s['annot'].to(DEVICE)} for s in data]
 	for i, s in enumerate(data):
 		annotations[i]['labels'] = s['labels'].type(torch.int64).cuda()
 	# labels = [{"labels": s['labels']} for s in data]
