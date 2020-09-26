@@ -188,7 +188,7 @@ for epoch in range(1, n_epochs+1):
 
 
 	state = {'state_dict': faster_rcnn.state_dict()}
-	torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
+	torch.save(state, os.path.join('./snapshots', f'faster_rcnn_custom.pth'))
 	print("model saved")
 
 
