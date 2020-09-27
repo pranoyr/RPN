@@ -33,6 +33,7 @@ from fpn import resnet101
 from torch.jit.annotations import Optional, List, Dict, Tuple
 from torchvision.models.detection.faster_rcnn import MultiScaleRoIAlign, TwoMLPHead, FastRCNNPredictor 
 
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 
@@ -573,7 +574,7 @@ class RPN(nn.Module):
 
 		images, targets = self.transform(images, targets)
 		# fpn_feature_maps = self.fpn(images.tensors.cuda())
-		fpn_feature_maps = self.fpn(images.tensors)
+		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		# fpn_feature_maps = OrderedDict(
 		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
@@ -622,14 +623,14 @@ if box_predictor is None:
 		num_classes=101)
 
 
-rpn = RPN()
+rpn = RPN().to(DEVICE)
 roi_heads = RoIHeads(
 			# Box
 			box_roi_pool, box_head, box_predictor,
 			box_fg_iou_thresh, box_bg_iou_thresh,
 			box_batch_size_per_image, box_positive_fraction,
 			bbox_reg_weights,
-			box_score_thresh, box_nms_thresh, box_detections_per_img)
+			box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
 
 
 
