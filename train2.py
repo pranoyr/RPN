@@ -82,7 +82,8 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
+# dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
+dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
