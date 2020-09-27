@@ -189,18 +189,18 @@ class RoIHeads(torch.nn.Module):
 			labels.append(labels_in_image)
 		return matched_idxs, labels
 
-	def assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels, assign_to=None):
+	def assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels):
 		# type: (List[Tensor], List[Tensor], List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
 		matched_idxs = []
 		labels = []
-		if assign_to == "subject":
-			slice_index = 0
-		else:
-			slice_index = 1
+		# if assign_to == "subject":
+		# 	slice_index = 0
+		# else:
+		# 	slice_index = 1
 		for proposals_in_image, gt_boxes_in_image, gt_labels_in_image in zip(proposals, gt_boxes, gt_labels):
 			
-			gt_boxes_in_image = gt_boxes_in_image[:,slice_index,:]
-			gt_labels_in_image = gt_labels_in_image[:,slice_index]
+			# gt_boxes_in_image = gt_boxes_in_image[:,slice_index,:]
+			# gt_labels_in_image = gt_labels_in_image[:,slice_index]
 
 			if gt_boxes_in_image.numel() == 0:
 				# Background image
