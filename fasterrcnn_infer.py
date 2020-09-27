@@ -2,7 +2,7 @@ from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, Anc
 # from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
-from dataset import VOCDataset, collater
+from datasets.pascal_voc import VOCDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from torchvision.models.detection.faster_rcnn import MultiScaleRoIAlign, TwoMLPHead, FastRCNNPredictor, RoIHeads 

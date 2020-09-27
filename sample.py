@@ -50,5 +50,18 @@ print(a.view(-1,4))
 print(b.view(-1))
 
 
-c = []
-c[0]=1
+# c = []
+# c[0]=1
+
+
+import json
+import os
+with open(os.path.join('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'json_dataset', 'objects.json'), 'r') as f:
+	objects = json.load(f)
+
+classes = ['__background__']
+classes.extend(objects)
+num_classes = len(classes)
+# self._classes.extend(self.predicates)
+_class_to_ind = dict(zip(range(num_classes), classes))
+print(_class_to_ind)

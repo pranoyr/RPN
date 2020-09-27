@@ -651,7 +651,7 @@ faster_rcnn = FasterRCNN().to(DEVICE)
 faster_rcnn.train()
 
 
-optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
+optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-6)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 # 	optimizer, patience=3, verbose=True)
 # # x = torch.Tensor(2, 3, 224, 224)

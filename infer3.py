@@ -1,15 +1,17 @@
 
 
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
-from torchvision.models.detection.faster_rcnn import FasterRCNN
+# from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 # from datasets.pascal_voc import VOCDataset, collater
 from datasets.vrd import VRDDataset, collater
+from PIL import Image
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torchvision.models.detection._utils as  det_utils
 from torchvision.ops import boxes as box_ops
+import cv2
 import os
 
 from collections import OrderedDict
@@ -32,9 +34,18 @@ from fpn import resnet101
 
 from torch.jit.annotations import Optional, List, Dict, Tuple
 from torchvision.models.detection.faster_rcnn import MultiScaleRoIAlign, TwoMLPHead, FastRCNNPredictor 
+import json
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+with open(os.path.join('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'json_dataset', 'objects.json'), 'r') as f:
+	objects = json.load(f)
+
+classes = ['__background__']
+classes.extend(objects)
+num_classes = len(classes)
+# self._classes.extend(self.predicates)
+ind_to_class = dict(zip(range(num_classes), classes))
 
 
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
@@ -84,9 +95,9 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 
 
 # dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
-dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
-dataloader = DataLoader(
-	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
+# dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
+# dataloader = DataLoader(
+# 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
 
@@ -499,6 +510,8 @@ class RoIHeads(torch.nn.Module):
 				"loss_box_reg": loss_box_reg
 			}
 		else:
+			print(class_logits.shape)
+			print(box_regression.shape)
 			boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
 			num_images = len(boxes)
 			for i in range(num_images):
@@ -570,9 +583,9 @@ class RPN(nn.Module):
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
 
-		targets = self.prepare_gt_for_rpn(targets)
+		if targets:
+			targets = self.prepare_gt_for_rpn(targets)
 
-		images, targets = self.transform(images, targets)
 		# fpn_feature_maps = self.fpn(images.tensors.cuda())
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		# fpn_feature_maps = OrderedDict(
@@ -587,75 +600,107 @@ class RPN(nn.Module):
 		return boxes, losses, fpn_feature_maps, images.image_sizes
 
 
-# rpn = RPN().cuda()
-# Box parameters
-box_roi_pool=None
-box_head=None
-box_predictor=None
-box_score_thresh=0.05
-box_nms_thresh=0.5
-box_detections_per_img=100,
-box_fg_iou_thresh=0.5
-box_bg_iou_thresh=0.5
-box_batch_size_per_image=512
-box_positive_fraction=0.25
-bbox_reg_weights=None
 
 
 
-if box_roi_pool is None:
-			box_roi_pool = MultiScaleRoIAlign(
-				featmap_names=['0', '1', '2', '3'],
-				output_size=7,
-				sampling_ratio=2)
-
-if box_head is None:
-	resolution = box_roi_pool.output_size[0]
-	representation_size = 1024
-	box_head = TwoMLPHead(
-		256 * resolution ** 2,
-		representation_size)
-
-if box_predictor is None:
-	representation_size = 1024
-	box_predictor = FastRCNNPredictor(
-		representation_size,
-		num_classes=101)
 
 
-rpn = RPN().to(DEVICE)
-roi_heads = RoIHeads(
-			# Box
-			box_roi_pool, box_head, box_predictor,
-			box_fg_iou_thresh, box_bg_iou_thresh,
-			box_batch_size_per_image, box_positive_fraction,
-			bbox_reg_weights,
-			box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
+class FasterRCNN(nn.Module):
+	def __init__(self):
+		super(FasterRCNN, self).__init__()
+		# rpn = RPN().cuda()
+		# Box parameters
+		box_roi_pool=None
+		box_head=None
+		box_predictor=None
+		box_score_thresh=0.5
+		box_nms_thresh=0.5
+		box_detections_per_img=100
+		box_fg_iou_thresh=0.5
+		box_bg_iou_thresh=0.5
+		box_batch_size_per_image=512
+		box_positive_fraction=0.25
+		bbox_reg_weights=None
 
 
+		if box_roi_pool is None:
+					box_roi_pool = MultiScaleRoIAlign(
+						featmap_names=['0', '1', '2', '3'],
+						output_size=7,
+						sampling_ratio=2)
 
-optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
-# scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-# 	optimizer, patience=3, verbose=True)
-# # x = torch.Tensor(2, 3, 224, 224)
-# # boxes, losses = rpn(x)
-# # print(boxes)
-# print(losses)
-n_epochs = 100
+		if box_head is None:
+			resolution = box_roi_pool.output_size[0]
+			representation_size = 1024
+			box_head = TwoMLPHead(
+				256 * resolution ** 2,
+				representation_size)
 
-rpn.eval()
-roi_heads.eval()
+		if box_predictor is None:
+			representation_size = 1024
+			box_predictor = FastRCNNPredictor(
+				representation_size,
+				num_classes=101)
 
-# load pretrained weights
-# checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
-checkpoint = torch.load('/Users/pranoyr/Downloads/rpn.pth', map_location='cpu')
-faster_rcnn.load_state_dict(checkpoint['state_dict'])
-print("Model Restored")
+		# transform parameters
+		min_size = 800
+		max_size = 1333
+		image_mean = [0.485, 0.456, 0.406]
+		image_std = [0.229, 0.224, 0.225]
+		self.transform = GeneralizedRCNNTransform(
+			min_size, max_size, image_mean, image_std)
 
+		self.rpn = RPN().to(DEVICE)
+		self.roi_heads = RoIHeads(
+					# Box
+					box_roi_pool, box_head, box_predictor,
+					box_fg_iou_thresh, box_bg_iou_thresh,
+					box_batch_size_per_image, box_positive_fraction,
+					bbox_reg_weights,
+					box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
+	
+	def forward(self, images, targets=None):
+    		
+	
+		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
+		for img in images:
+			val = img.shape[-2:]
+			assert len(val) == 2
+			original_image_sizes.append((val[0], val[1]))
+		
+		images, targets = self.transform(images, targets)
+			
+
+
+		if self.training:
+			proposals, rpn_losses, features, image_shapes = self.rpn(images, targets)
+			detections, head_losses = self.roi_heads(features, proposals, image_shapes, targets)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			losses = {}
+			losses.update(head_losses)
+			losses.update(rpn_losses)
+		else:
+			proposals, rpn_losses, features, image_shapes = self.rpn(images)
+			detections, head_losses = self.roi_heads(features, proposals, image_shapes)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			losses = {}
+		return detections, losses
+
+			
+				
+
+faster_rcnn = FasterRCNN().to(DEVICE)
 faster_rcnn.eval()
 
 
-im = Image.open('/Users/pranoyr/Downloads/err.jpg')
+# load pretrained weights
+# checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+checkpoint = torch.load('/Users/pranoyr/Downloads/faster_rcnn.pth', map_location='cpu')
+faster_rcnn.load_state_dict(checkpoint['state_dict'])
+print("Model Restored")
+
+
+im = Image.open('/Users/pranoyr/Downloads/aa.jpeg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))
@@ -673,10 +718,10 @@ print(boxes.shape)
 for i in range(boxes.size(0)):
 	box = boxes[i]
 	score = scores[i]
-	label = f"{class_names[labels[i]]}: {scores[i]:.2f}"
+	label = f"{ind_to_class[labels[i].item()]}: {scores[i].item():.2f}"
 	cv2.rectangle(draw, (box[0], box[1]), (box[2], box[3]), (255, 255, 0), 4)
-	label = f"""{class_names[labels[i]]}: {scores[i]:.2f}"""
-	label = f"{class_names[labels[i]]}: {scores[i]:.2f}"
+	label = f"""{ind_to_class[labels[i].item()]}: {scores[i].item():.2f}"""
+	label = f"{ind_to_class[labels[i].item()]}: {scores[i].item():.2f}"
 	cv2.putText(draw, label,
 				(box[0] + 20, box[1] + 40),
 				cv2.FONT_HERSHEY_SIMPLEX,
@@ -686,20 +731,4 @@ for i in range(boxes.size(0)):
 path = "./results/faster_rcnn_sample.jpg"
 cv2.imwrite(path, draw)
 
-# boxes = boxes.type(torch.in
 
-
-
-
-
-
-for epoch in range(1, n_epochs+1):
-	loss = []
-	for i, data in enumerate(dataloader):
-		images, annotations = data
-		proposals, rpn_losses, features, image_shapes = rpn(images, annotations)
-		results, head_losses = roi_heads(features,     
-				proposals,     
-				image_shapes, 
-				annotations)
-	
