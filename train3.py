@@ -647,7 +647,8 @@ class FasterRCNN(nn.Module):
 			
 				
 
-faster_rcnn = FasterRCNN()
+faster_rcnn = FasterRCNN().to(DEVICE)
+faster_rcnn.train()
 
 
 optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
