@@ -342,15 +342,15 @@ class RoIHeads(torch.nn.Module):
 
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
-		labels = []
-		regression_targets = []
-		matched_idxs = []
-		proposals = []
-		for i in range(len(sub_proposals)):
-			proposals.append(torch.cat([sub_proposals[i], obj_proposals[i]]))
-			matched_idxs.append(torch.cat([sub_matched_idxs[i], obj_matched_idxs[i]]))
-			labels.append(torch.cat([sub_labels[i],obj_labels[i]]))
-			regression_targets.append(torch.cat([sub_regression_targets[i],obj_regression_targets[i]]))
+		# labels = []
+		# regression_targets = []
+		# matched_idxs = []
+		# proposals = []
+		# for i in range(len(sub_proposals)):
+		# 	proposals.append(torch.cat([sub_proposals[i], obj_proposals[i]]))
+		# 	matched_idxs.append(torch.cat([sub_matched_idxs[i], obj_matched_idxs[i]]))
+		# 	labels.append(torch.cat([sub_labels[i],obj_labels[i]]))
+		# 	regression_targets.append(torch.cat([sub_regression_targets[i],obj_regression_targets[i]]))
 			
 
 
