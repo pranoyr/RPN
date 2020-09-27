@@ -686,7 +686,7 @@ for epoch in range(1, n_epochs+1):
 	# scheduler.step(torch.mean(loss))
 
 
-	state = {'state_dict': rpn.state_dict()}
-	torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
+	state = {'state_dict': faster_rcnn.state_dict()}
+	torch.save(state, os.path.join('./snapshots', f'faster_rcnn.pth'))
 	print("model saved")
 
