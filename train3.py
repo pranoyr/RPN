@@ -597,7 +597,7 @@ box_nms_thresh=0.5
 box_detections_per_img=100,
 box_fg_iou_thresh=0.5
 box_bg_iou_thresh=0.5
-box_batch_size_per_image=256
+box_batch_size_per_image=512
 box_positive_fraction=0.25
 bbox_reg_weights=None
 
