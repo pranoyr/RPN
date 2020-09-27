@@ -61,8 +61,9 @@ class RPN(nn.Module):
 		rpn_pre_nms_top_n_train = 2000
 		rpn_pre_nms_top_n_test = 1000
 		rpn_post_nms_top_n_train = 2000
-		rpn_post_nms_top_n_test = 6
+		rpn_post_nms_top_n_test = 1000
 		rpn_nms_thresh = 0.7
+		# rpn_nms_thresh = 0.45
 		rpn_fg_iou_thresh = 0.7
 		rpn_bg_iou_thresh = 0.3
 		rpn_batch_size_per_image = 256
@@ -120,14 +121,15 @@ rpn = RPN()
 
 
 # load pretrained weights
-checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+# checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+checkpoint = torch.load('/Users/pranoyr/Downloads/faster_rcnn_custom.pth', map_location='cpu')
 rpn.load_state_dict(checkpoint['state_dict'], strict=False)
 print("Model Restored")
 
 rpn.eval()
 
 
-im = Image.open('/Users/pranoyr/Downloads/sample.png')
+im = Image.open('/Users/pranoyr/Downloads/err.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))

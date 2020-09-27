@@ -84,7 +84,7 @@ class FasterRCNN(nn.Module):
 		box_roi_pool=None
 		box_head=None
 		box_predictor=None
-		box_score_thresh=0.7
+		box_score_thresh=0.5
 		box_nms_thresh=0.5
 		box_detections_per_img=100
 		box_fg_iou_thresh=0.5
@@ -153,14 +153,15 @@ class FasterRCNN(nn.Module):
 faster_rcnn = FasterRCNN()
 
 # load pretrained weights
-checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+# checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+checkpoint = torch.load('/Users/pranoyr/Downloads/faster_rcnn_custom.pth', map_location='cpu')
 faster_rcnn.load_state_dict(checkpoint['state_dict'])
 print("Model Restored")
 
 faster_rcnn.eval()
 
 
-im = Image.open('/Users/pranoyr/Downloads/sample.png')
+im = Image.open('/Users/pranoyr/Downloads/err.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))

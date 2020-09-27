@@ -223,7 +223,7 @@ def collater(data):
 	imgs = [s['img'] for s in data]
 	annotations = [{"boxes": s['annot'].to(DEVICE)} for s in data]
 	for i, s in enumerate(data):
-		annotations[i]['labels'] = s['labels'].type(torch.int64).cuda()
+		annotations[i]['labels'] = s['labels'].type(torch.int64).to(DEVICE)
 	# labels = [{"labels": s['labels']} for s in data]
 	return imgs, annotations
 

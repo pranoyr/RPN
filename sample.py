@@ -28,3 +28,27 @@ boxes = torch.tensor([[1,2,3,4],[1,2,3,4]])
 print(boxes.shape)
 boxes = resize_boxes(boxes)
 print(boxes.shape)
+
+
+a = [1,2,3,7]
+b = [1,2,3,4]
+
+assert len(a) == len(b), "labels and boxes should be of equal length"
+
+
+a = torch.tensor(  [  [[1,2,3,4],[5,6,7,8]], [[9,10,11,12],[13,14,15,16]]  ])
+
+b = torch.tensor(  [ [1,2], [3,4] ]  )
+
+
+
+
+
+
+
+print(a.view(-1,4))
+print(b.view(-1))
+
+
+c = []
+c[0]=1
