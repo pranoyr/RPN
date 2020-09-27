@@ -648,7 +648,6 @@ class FasterRCNN(nn.Module):
 				
 
 faster_rcnn = FasterRCNN().to(DEVICE)
-faster_rcnn.train()
 
 
 optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-6)
@@ -660,6 +659,7 @@ optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-6)
 # print(losses)
 n_epochs = 100
 
+faster_rcnn.train()
 
 for epoch in range(1, n_epochs+1):
 	loss = []
