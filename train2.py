@@ -269,8 +269,8 @@ class RoIHeads(torch.nn.Module):
 		dtype = proposals[0].dtype
 		device = proposals[0].device
 
-		gt_boxes = [t["boxes"].to(dtype) for t in targets]
-		gt_labels = [t["labels"] for t in targets]
+		gt_boxes = [t["boxes"].to(dtype) for t in targets]  # --> shape [List[Tensor of size 10,2,4]]  
+		gt_labels = [t["labels"] for t in targets]				# --> shape [List[Tensor of size 10,2]]
 		# gt_preds = [t["preds"] for t in targets]
 
 		# append ground-truth bboxes to propos
