@@ -1,7 +1,7 @@
 
 
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
-# from torchvision.models.detection.faster_rcnn import FasterRCNN
+from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 # from datasets.pascal_voc import VOCDataset, collater
@@ -587,70 +587,54 @@ class RPN(nn.Module):
 		return boxes, losses, fpn_feature_maps, images.image_sizes
 
 
+# rpn = RPN().cuda()
+# Box parameters
+box_roi_pool=None
+box_head=None
+box_predictor=None
+box_score_thresh=0.05
+box_nms_thresh=0.5
+box_detections_per_img=100,
+box_fg_iou_thresh=0.5
+box_bg_iou_thresh=0.5
+box_batch_size_per_image=512
+box_positive_fraction=0.25
+bbox_reg_weights=None
 
 
 
+if box_roi_pool is None:
+			box_roi_pool = MultiScaleRoIAlign(
+				featmap_names=['0', '1', '2', '3'],
+				output_size=7,
+				sampling_ratio=2)
+
+if box_head is None:
+	resolution = box_roi_pool.output_size[0]
+	representation_size = 1024
+	box_head = TwoMLPHead(
+		256 * resolution ** 2,
+		representation_size)
+
+if box_predictor is None:
+	representation_size = 1024
+	box_predictor = FastRCNNPredictor(
+		representation_size,
+		num_classes=101)
 
 
-class FasterRCNN(nn.Module):
-	def __init__(self):
-		super(FasterRCNN, self).__init__()
-		# rpn = RPN().cuda()
-		# Box parameters
-		box_roi_pool=None
-		box_head=None
-		box_predictor=None
-		box_score_thresh=0.05
-		box_nms_thresh=0.5
-		box_detections_per_img=100,
-		box_fg_iou_thresh=0.5
-		box_bg_iou_thresh=0.5
-		box_batch_size_per_image=512
-		box_positive_fraction=0.25
-		bbox_reg_weights=None
+rpn = RPN().to(DEVICE)
+roi_heads = RoIHeads(
+			# Box
+			box_roi_pool, box_head, box_predictor,
+			box_fg_iou_thresh, box_bg_iou_thresh,
+			box_batch_size_per_image, box_positive_fraction,
+			bbox_reg_weights,
+			box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
 
 
-		if box_roi_pool is None:
-					box_roi_pool = MultiScaleRoIAlign(
-						featmap_names=['0', '1', '2', '3'],
-						output_size=7,
-						sampling_ratio=2)
 
-		if box_head is None:
-			resolution = box_roi_pool.output_size[0]
-			representation_size = 1024
-			box_head = TwoMLPHead(
-				256 * resolution ** 2,
-				representation_size)
-
-		if box_predictor is None:
-			representation_size = 1024
-			box_predictor = FastRCNNPredictor(
-				representation_size,
-				num_classes=101)
-
-
-		self.rpn = RPN().to(DEVICE)
-		self.roi_heads = RoIHeads(
-					# Box
-					box_roi_pool, box_head, box_predictor,
-					box_fg_iou_thresh, box_bg_iou_thresh,
-					box_batch_size_per_image, box_positive_fraction,
-					bbox_reg_weights,
-					box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
-	
-	def forward(self, images, targets=None):
-		proposals, rpn_losses, features, image_shapes = self.rpn(images, targets)
-		result, head_losses = self.roi_heads(features, proposals, image_shapes, targets)
-		return  result, rpn_losses, head_losses
-			
-			
-				
-
-faster_rcnn = FasterRCNN()
-
-
-optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
+optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 # 	optimizer, patience=3, verbose=True)
 # # x = torch.Tensor(2, 3, 224, 224)
@@ -659,34 +643,63 @@ optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
 # print(losses)
 n_epochs = 100
 
+rpn.eval()
+roi_heads.eval()
+
+# load pretrained weights
+# checkpoint = torch.load('./snapshots/faster_rcnn_custom.pth', map_location='cpu')
+checkpoint = torch.load('/Users/pranoyr/Downloads/rpn.pth', map_location='cpu')
+faster_rcnn.load_state_dict(checkpoint['state_dict'])
+print("Model Restored")
+
+faster_rcnn.eval()
+
+
+im = Image.open('/Users/pranoyr/Downloads/err.jpg')
+img = np.array(im)
+draw = img.copy()
+# draw = cv2.resize(draw,(1344,768))
+img = torch.from_numpy(img)
+img = img.permute(2,0,1)
+img = img.type(torch.float32)
+
+detections, losses = faster_rcnn([img])
+boxes = detections[0]['boxes']
+scores = detections[0]['scores']
+labels =  detections[0]['labels']
+print(scores.shape)
+
+print(boxes.shape)
+for i in range(boxes.size(0)):
+	box = boxes[i]
+	score = scores[i]
+	label = f"{class_names[labels[i]]}: {scores[i]:.2f}"
+	cv2.rectangle(draw, (box[0], box[1]), (box[2], box[3]), (255, 255, 0), 4)
+	label = f"""{class_names[labels[i]]}: {scores[i]:.2f}"""
+	label = f"{class_names[labels[i]]}: {scores[i]:.2f}"
+	cv2.putText(draw, label,
+				(box[0] + 20, box[1] + 40),
+				cv2.FONT_HERSHEY_SIMPLEX,
+				1,  # font scale
+				(255, 0, 255),
+				2)  # line type
+path = "./results/faster_rcnn_sample.jpg"
+cv2.imwrite(path, draw)
+
+# boxes = boxes.type(torch.in
+
+
+
+
+
 
 for epoch in range(1, n_epochs+1):
 	loss = []
 	for i, data in enumerate(dataloader):
-		images, targets = data
-		result, rpn_losses, head_losses = faster_rcnn(images, targets)
-		
-	# 	break
-	# break
+		images, annotations = data
+		proposals, rpn_losses, features, image_shapes = rpn(images, annotations)
+		results, head_losses = roi_heads(features,     
+				proposals,     
+				image_shapes, 
+				annotations)
 	
-		final_loss = rpn_losses["loss_objectness"] + rpn_losses["loss_rpn_box_reg"] + head_losses["loss_classifier"] + head_losses["loss_box_reg"]
-		loss.append(final_loss.item())
-
-		optimizer.zero_grad()
-		final_loss.backward()
-		optimizer.step()
-		print(f'RCNN_Loss    : {final_loss.item()},\n\
-				rpn_cls_loss : {rpn_losses["loss_objectness"].item()},\n\
-				rpn_reg_loss : {rpn_losses["loss_rpn_box_reg"].item()}\n\
-				box_loss 	 : {head_losses["loss_box_reg"]}\n\
-				cls_loss     : {head_losses["loss_classifier"]}')
-
-	loss = torch.tensor(loss, dtype=torch.float32)
-	print(f'loss : {torch.mean(loss)}')
-	# scheduler.step(torch.mean(loss))
-
-
-	state = {'state_dict': rpn.state_dict()}
-	torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
-	print("model saved")
-
