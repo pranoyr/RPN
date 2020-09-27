@@ -490,7 +490,6 @@ class RoIHeads(torch.nn.Module):
 		losses = {}
 		if self.training:
 			assert labels is not None and regression_targets is not None
-			print(class_logits.shape)
 			loss_classifier, loss_box_reg = fastrcnn_loss(
 				class_logits, box_regression, labels, regression_targets)
 			losses = {
@@ -619,7 +618,7 @@ if box_predictor is None:
 	representation_size = 1024
 	box_predictor = FastRCNNPredictor(
 		representation_size,
-		num_classes=21)
+		num_classes=101)
 
 
 rpn = RPN()
