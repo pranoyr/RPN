@@ -639,8 +639,8 @@ class FasterRCNN(nn.Module):
 			assert len(val) == 2
 			original_image_sizes.append((val[0], val[1]))
 		
-		print(targets[0["boxes"].shape])
-		print(targets[0["labels"].shape])
+		print(targets[0]["boxes"].shape)
+		print(targets[0]["labels"].shape)
 		images, targets = self.transform(images, targets)
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		
