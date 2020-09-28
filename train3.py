@@ -696,22 +696,22 @@ for epoch in range(1, n_epochs+1):
 	loss = []
 	for i, data in enumerate(dataloader):
 		images, targets = data
-		result, rpn_losses, head_losses = faster_rcnn(images, targets)
+		result, losses = faster_rcnn(images, targets)
 		
 	# 	break
 	# break
 	
-		final_loss = rpn_losses["loss_objectness"] + rpn_losses["loss_rpn_box_reg"] + head_losses["loss_classifier"] + head_losses["loss_box_reg"]
+		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + losses["loss_classifier"] + losses["loss_box_reg"]
 		loss.append(final_loss.item())
 
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
 		print(f'RCNN_Loss    : {final_loss.item()},\n\
-				rpn_cls_loss : {rpn_losses["loss_objectness"].item()},\n\
-				rpn_reg_loss : {rpn_losses["loss_rpn_box_reg"].item()}\n\
-				box_loss 	 : {head_losses["loss_box_reg"]}\n\
-				cls_loss     : {head_losses["loss_classifier"]}')
+				rpn_cls_loss : {losses["loss_objectness"].item()},\n\
+				rpn_reg_loss : {losses["loss_rpn_box_reg"].item()}\n\
+				box_loss 	 : {losses["loss_box_reg"]}\n\
+				cls_loss     : {losses["loss_classifier"]}')
 
 	loss = torch.tensor(loss, dtype=torch.float32)
 	print(f'loss : {torch.mean(loss)}')
