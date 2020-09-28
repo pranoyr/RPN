@@ -28,13 +28,23 @@ from torchvision.models.resnet import resnet101
 import torchvision
 import math
 from fpn import resnet101
+import json
 
+# class_names = ('__background__','aeroplane', 'bicycle', 'bird', 'boat',
+# 								'bottle', 'bus', 'car', 'cat', 'chair',
+# 								'cow', 'diningtable', 'dog', 'horse',
+# 								'motorbike', 'person', 'pottedplant',
+# 								'sheep', 'sofa', 'train', 'tvmonitor')
 
-class_names = ('__background__','aeroplane', 'bicycle', 'bird', 'boat',
-								'bottle', 'bus', 'car', 'cat', 'chair',
-								'cow', 'diningtable', 'dog', 'horse',
-								'motorbike', 'person', 'pottedplant',
-								'sheep', 'sofa', 'train', 'tvmonitor')
+with open(os.path.join('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'json_dataset', 'objects.json'), 'r') as f:
+	objects = json.load(f)
+
+class_names = ['__background__']
+class_names.extend(objects)
+num_classes = len(class_names)
+print(class_names)
+# self._classes.extend(self.predicates)
+# class_names = dict(zip(range(num_classes), classes))
 
 
 class FasterRCNN(nn.Module):
@@ -92,7 +102,7 @@ class FasterRCNN(nn.Module):
 		box_batch_size_per_image=512
 		box_positive_fraction=0.25
 		bbox_reg_weights=None
-		num_classes=21
+		num_classes=101
 
 		if box_roi_pool is None:
 			box_roi_pool = MultiScaleRoIAlign(
@@ -161,7 +171,7 @@ print("Model Restored")
 faster_rcnn.eval()
 
 
-im = Image.open('/Users/pranoyr/Downloads/err.jpg')
+im = Image.open('/Users/pranoyr/Downloads/1.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))

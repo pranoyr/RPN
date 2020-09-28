@@ -606,7 +606,7 @@ class FasterRCNN(nn.Module):
 
 		if box_roi_pool is None:
 			box_roi_pool = MultiScaleRoIAlign(
-				featmap_names=['0', '1', '2', '3'],
+				featmap_names=['0', '1', '2', '3', '4'],
 				output_size=7,
 				sampling_ratio=2)
 
