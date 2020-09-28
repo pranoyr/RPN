@@ -517,7 +517,6 @@ class RPN(nn.Module):
 	def __init__(self):
 		super(RPN, self).__init__()
 		# Define FPN
-		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
 		aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
 		# Generate anchor boxes
@@ -535,14 +534,6 @@ class RPN(nn.Module):
 		rpn_bg_iou_thresh = 0.3
 		rpn_batch_size_per_image = 256
 		rpn_positive_fraction = 0.5
-
-		# transform parameters
-		min_size = 800
-		max_size = 1333
-		image_mean = [0.485, 0.456, 0.406]
-		image_std = [0.229, 0.224, 0.225]
-		self.transform = GeneralizedRCNNTransform(
-			min_size, max_size, image_mean, image_std)
 
 		rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train,
 								 testing=rpn_pre_nms_top_n_test)
@@ -565,29 +556,19 @@ class RPN(nn.Module):
 			gth_list.append(gt)
 		return gth_list
 	
-	def forward(self, images, targets=None):
+	def forward(self, images, fpn_feature_maps, targets=None):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
 
 		targets = self.prepare_gt_for_rpn(targets)
-
-		images, targets = self.transform(images, targets)
-		# fpn_feature_maps = self.fpn(images.tensors.cuda())
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
-		# fpn_feature_maps = OrderedDict(
-		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
-		# fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
-
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
 		else:
 			boxes, losses = self.rpn(images, fpn_feature_maps)
-		return boxes, losses, fpn_feature_maps, images.image_sizes
-
-
-
+		return boxes, losses, fpn_feature_maps
 
 
 
@@ -595,26 +576,68 @@ class RPN(nn.Module):
 class FasterRCNN(nn.Module):
 	def __init__(self):
 		super(FasterRCNN, self).__init__()
-		# rpn = RPN().cuda()
+		# Define FPN
+		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
+		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+		aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+		# Generate anchor boxes
+		anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
+		# Define RPN Head
+		# rpn_head = RPNHead(256, 9)
+		rpn_head = RPNHead(256, anchor_generator.num_anchors_per_location()[0])
+		# RPN parameters,
+		rpn_pre_nms_top_n_train = 2000
+		rpn_pre_nms_top_n_test = 1000
+		rpn_post_nms_top_n_train = 2000
+		rpn_post_nms_top_n_test = 1000
+		rpn_nms_thresh = 0.7
+		rpn_fg_iou_thresh = 0.7
+		rpn_bg_iou_thresh = 0.3
+		# rpn_nms_thresh = 0.45
+		# rpn_fg_iou_thresh = 0.5
+		# rpn_bg_iou_thresh = 0.5
+		rpn_batch_size_per_image = 256
+		rpn_positive_fraction = 0.5
+
+		# transform parameters
+		min_size = 800
+		max_size = 1333
+		image_mean = [0.485, 0.456, 0.406]
+		image_std = [0.229, 0.224, 0.225]
+		self.transform = GeneralizedRCNNTransform(
+			min_size, max_size, image_mean, image_std)
+
+		rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train,
+								 testing=rpn_pre_nms_top_n_test)
+		rpn_post_nms_top_n = dict(
+			training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
+
+		# Create RPN
+		self.rpn = RegionProposalNetwork(
+			anchor_generator, rpn_head,
+			rpn_fg_iou_thresh, rpn_bg_iou_thresh,
+			rpn_batch_size_per_image, rpn_positive_fraction,
+			rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh)
+		
 		# Box parameters
 		box_roi_pool=None
 		box_head=None
 		box_predictor=None
 		box_score_thresh=0.05
 		box_nms_thresh=0.5
-		box_detections_per_img=100,
+		box_detections_per_img=100
 		box_fg_iou_thresh=0.5
 		box_bg_iou_thresh=0.5
 		box_batch_size_per_image=512
 		box_positive_fraction=0.25
 		bbox_reg_weights=None
-
+		num_classes=21
 
 		if box_roi_pool is None:
-					box_roi_pool = MultiScaleRoIAlign(
-						featmap_names=['0', '1', '2', '3'],
-						output_size=7,
-						sampling_ratio=2)
+			box_roi_pool = MultiScaleRoIAlign(
+				featmap_names=['0', '1', '2', '3'],
+				output_size=7,
+				sampling_ratio=2)
 
 		if box_head is None:
 			resolution = box_roi_pool.output_size[0]
@@ -627,28 +650,102 @@ class FasterRCNN(nn.Module):
 			representation_size = 1024
 			box_predictor = FastRCNNPredictor(
 				representation_size,
-				num_classes=101)
+				num_classes)
 
-
-		self.rpn = RPN().to(DEVICE)
 		self.roi_heads = RoIHeads(
-					# Box
-					box_roi_pool, box_head, box_predictor,
-					box_fg_iou_thresh, box_bg_iou_thresh,
-					box_batch_size_per_image, box_positive_fraction,
-					bbox_reg_weights,
-					box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
-	
+			# Box
+			box_roi_pool, box_head, box_predictor,
+			box_fg_iou_thresh, box_bg_iou_thresh,
+			box_batch_size_per_image, box_positive_fraction,
+			bbox_reg_weights,
+			box_score_thresh, box_nms_thresh, box_detections_per_img)
+
 	def forward(self, images, targets=None):
-		proposals, rpn_losses, features, image_shapes = self.rpn(images, targets)
-		result, head_losses = self.roi_heads(features, proposals, image_shapes, targets)
-		return  result, rpn_losses, head_losses
+			
+		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
+		for img in images:
+			val = img.shape[-2:]
+			assert len(val) == 2
+			original_image_sizes.append((val[0], val[1]))
+		
+
+		images, targets = self.transform(images, targets)
+		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
+		
+		if self.training:
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps, targets)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
+			# detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			losses = {}
+			losses.update(detector_losses)
+			losses.update(rpn_losses)
+		else:
+			losses = {}
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+		return detections, losses
+
+
+
+# class FasterRCNN(nn.Module):
+# 	def __init__(self):
+# 		super(FasterRCNN, self).__init__()
+# 		# rpn = RPN().cuda()
+# 		# Box parameters
+# 		box_roi_pool=None
+# 		box_head=None
+# 		box_predictor=None
+# 		box_score_thresh=0.05
+# 		box_nms_thresh=0.5
+# 		box_detections_per_img=100,
+# 		box_fg_iou_thresh=0.5
+# 		box_bg_iou_thresh=0.5
+# 		box_batch_size_per_image=512
+# 		box_positive_fraction=0.25
+# 		bbox_reg_weights=None
+
+
+# 		if box_roi_pool is None:
+# 					box_roi_pool = MultiScaleRoIAlign(
+# 						featmap_names=['0', '1', '2', '3'],
+# 						output_size=7,
+# 						sampling_ratio=2)
+
+# 		if box_head is None:
+# 			resolution = box_roi_pool.output_size[0]
+# 			representation_size = 1024
+# 			box_head = TwoMLPHead(
+# 				256 * resolution ** 2,
+# 				representation_size)
+
+# 		if box_predictor is None:
+# 			representation_size = 1024
+# 			box_predictor = FastRCNNPredictor(
+# 				representation_size,
+# 				num_classes=101)
+
+
+# 		self.rpn = RPN().to(DEVICE)
+# 		self.roi_heads = RoIHeads(
+# 					# Box
+# 					box_roi_pool, box_head, box_predictor,
+# 					box_fg_iou_thresh, box_bg_iou_thresh,
+# 					box_batch_size_per_image, box_positive_fraction,
+# 					bbox_reg_weights,
+# 					box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
+	
+# 	def forward(self, images, targets=None):
+# 		proposals, rpn_losses, features, image_shapes = self.rpn(images, targets)
+# 		result, head_losses = self.roi_heads(features, proposals, image_shapes, targets)
+# 		return  result, rpn_losses, head_losses
 			
 			
 				
 
-faster_rcnn = FasterRCNN().to(DEVICE)
 
+
+faster_rcnn = FasterRCNN().to(DEVICE)
 
 optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-6)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
