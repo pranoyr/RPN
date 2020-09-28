@@ -48,6 +48,7 @@ num_classes = len(classes)
 ind_to_class = dict(zip(range(num_classes), classes))
 
 
+
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 	# type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
 	"""
@@ -94,7 +95,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-# dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
+# # dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
 # dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 # dataloader = DataLoader(
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
@@ -510,8 +511,6 @@ class RoIHeads(torch.nn.Module):
 				"loss_box_reg": loss_box_reg
 			}
 		else:
-			print(class_logits.shape)
-			print(box_regression.shape)
 			boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
 			num_images = len(boxes)
 			for i in range(num_images):
@@ -530,7 +529,6 @@ class RPN(nn.Module):
 	def __init__(self):
 		super(RPN, self).__init__()
 		# Define FPN
-		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
 		aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
 		# Generate anchor boxes
@@ -548,14 +546,6 @@ class RPN(nn.Module):
 		rpn_bg_iou_thresh = 0.3
 		rpn_batch_size_per_image = 256
 		rpn_positive_fraction = 0.5
-
-		# transform parameters
-		min_size = 800
-		max_size = 1333
-		image_mean = [0.485, 0.456, 0.406]
-		image_std = [0.229, 0.224, 0.225]
-		self.transform = GeneralizedRCNNTransform(
-			min_size, max_size, image_mean, image_std)
 
 		rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train,
 								 testing=rpn_pre_nms_top_n_test)
@@ -578,29 +568,19 @@ class RPN(nn.Module):
 			gth_list.append(gt)
 		return gth_list
 	
-	def forward(self, images, targets=None):
+	def forward(self, images, fpn_feature_maps, targets=None):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
 
-		if targets:
-			targets = self.prepare_gt_for_rpn(targets)
-
-		# fpn_feature_maps = self.fpn(images.tensors.cuda())
+		targets = self.prepare_gt_for_rpn(targets)
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
-		# fpn_feature_maps = OrderedDict(
-		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
-		# fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
-
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
 		else:
 			boxes, losses = self.rpn(images, fpn_feature_maps)
-		return boxes, losses, fpn_feature_maps, images.image_sizes
-
-
-
+		return boxes, losses, fpn_feature_maps
 
 
 
@@ -608,7 +588,20 @@ class RPN(nn.Module):
 class FasterRCNN(nn.Module):
 	def __init__(self):
 		super(FasterRCNN, self).__init__()
-		# rpn = RPN().cuda()
+		# Define FPN
+		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
+		self.rpn = RPN()
+	
+
+		# transform parameters
+		min_size = 800
+		max_size = 1333
+		image_mean = [0.485, 0.456, 0.406]
+		image_std = [0.229, 0.224, 0.225]
+		self.transform = GeneralizedRCNNTransform(
+			min_size, max_size, image_mean, image_std)
+
+		
 		# Box parameters
 		box_roi_pool=None
 		box_head=None
@@ -621,13 +614,13 @@ class FasterRCNN(nn.Module):
 		box_batch_size_per_image=512
 		box_positive_fraction=0.25
 		bbox_reg_weights=None
-
+		num_classes=101
 
 		if box_roi_pool is None:
-					box_roi_pool = MultiScaleRoIAlign(
-						featmap_names=['0', '1', '2', '3'],
-						output_size=7,
-						sampling_ratio=2)
+			box_roi_pool = MultiScaleRoIAlign(
+				featmap_names=['0', '1', '2', '3'],
+				output_size=7,
+				sampling_ratio=2)
 
 		if box_head is None:
 			resolution = box_roi_pool.output_size[0]
@@ -640,54 +633,44 @@ class FasterRCNN(nn.Module):
 			representation_size = 1024
 			box_predictor = FastRCNNPredictor(
 				representation_size,
-				num_classes=101)
+				num_classes)
 
-		# transform parameters
-		min_size = 800
-		max_size = 1333
-		image_mean = [0.485, 0.456, 0.406]
-		image_std = [0.229, 0.224, 0.225]
-		self.transform = GeneralizedRCNNTransform(
-			min_size, max_size, image_mean, image_std)
-
-		self.rpn = RPN().to(DEVICE)
 		self.roi_heads = RoIHeads(
-					# Box
-					box_roi_pool, box_head, box_predictor,
-					box_fg_iou_thresh, box_bg_iou_thresh,
-					box_batch_size_per_image, box_positive_fraction,
-					bbox_reg_weights,
-					box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
-	
+			# Box
+			box_roi_pool, box_head, box_predictor,
+			box_fg_iou_thresh, box_bg_iou_thresh,
+			box_batch_size_per_image, box_positive_fraction,
+			bbox_reg_weights,
+			box_score_thresh, box_nms_thresh, box_detections_per_img)
+
 	def forward(self, images, targets=None):
-    		
-	
+			
 		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
 		for img in images:
 			val = img.shape[-2:]
 			assert len(val) == 2
 			original_image_sizes.append((val[0], val[1]))
 		
+
 		images, targets = self.transform(images, targets)
-			
-
-
+		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
+		
 		if self.training:
-			proposals, rpn_losses, features, image_shapes = self.rpn(images, targets)
-			detections, head_losses = self.roi_heads(features, proposals, image_shapes, targets)
-			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps, targets)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
+			# detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 			losses = {}
-			losses.update(head_losses)
+			losses.update(detector_losses)
 			losses.update(rpn_losses)
 		else:
-			proposals, rpn_losses, features, image_shapes = self.rpn(images)
-			detections, head_losses = self.roi_heads(features, proposals, image_shapes)
-			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 			losses = {}
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 		return detections, losses
 
+
 			
-				
 
 faster_rcnn = FasterRCNN().to(DEVICE)
 faster_rcnn.eval()
