@@ -2,7 +2,8 @@ from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, Anc
 # from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
-from dataset import VOCDataset, collater
+# from dataset import VOCDataset, collater
+from datasets.vrd_combine import VRDDataset, collater
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from torchvision.models.detection.faster_rcnn import MultiScaleRoIAlign, TwoMLPHead, FastRCNNPredictor, RoIHeads 
@@ -30,10 +31,19 @@ from fpn import resnet101
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
-# dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
+# dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
+# # dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
+# dataloader = DataLoader(
+# 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
+
+
+# dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
+dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
+
+
+
 
 
 class FasterRCNN(nn.Module):
