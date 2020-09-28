@@ -104,7 +104,7 @@ class FasterRCNN(nn.Module):
 		box_batch_size_per_image=512
 		box_positive_fraction=0.25
 		bbox_reg_weights=None
-		num_classes=21
+		num_classes=101
 
 		if box_roi_pool is None:
 			box_roi_pool = MultiScaleRoIAlign(
