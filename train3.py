@@ -630,6 +630,24 @@ class FasterRCNN(nn.Module):
 			box_batch_size_per_image, box_positive_fraction,
 			bbox_reg_weights,
 			box_score_thresh, box_nms_thresh, box_detections_per_img)
+	
+	def flatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,4)
+			gt["labels"] = target["labels"].view(-1)
+			gth_list.append(gt)
+		return gth_list
+	
+	def unflatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,2,4)
+			gt["labels"] = target["labels"].view(-1,2)
+			gth_list.append(gt)
+		return gth_list
 
 	def forward(self, images, targets=None):
 			
@@ -639,13 +657,14 @@ class FasterRCNN(nn.Module):
 			assert len(val) == 2
 			original_image_sizes.append((val[0], val[1]))
 		
-		print(targets[0]["boxes"].shape)
-		print(targets[0]["labels"].shape)
+		targets = self.flatten_targets(targets)
 		images, targets = self.transform(images, targets)
+	
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		
 		if self.training:
 			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps, targets)
+			targets = self.unflatten_targets(targets)
 			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
 			# detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 			losses = {}
