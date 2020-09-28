@@ -562,7 +562,6 @@ class RPN(nn.Module):
 		# targets = [{i: index for i, index in enumerate(l)}]
 
 		targets = self.prepare_gt_for_rpn(targets)
-		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
