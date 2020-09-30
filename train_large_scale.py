@@ -7,9 +7,11 @@ from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 # from datasets.pascal_voc import VOCDataset, collater
 from datasets.vrd import VRDDataset, collater
 from torch.utils.data import DataLoader
+import reldn_heads
 import torch.optim as optim
 import torchvision.models.detection._utils as  det_utils
 from torchvision.ops import boxes as box_ops
+from utils import get_obj_prd_vecs
 import os
 
 from collections import OrderedDict
@@ -83,8 +85,9 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-# dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
-dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
+dataset_path = '/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD'
+dataset_train = VRDDataset(dataset_path, 'train')
+# dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 dataloader = DataLoader(
 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
@@ -99,6 +102,7 @@ class RoIHeads(torch.nn.Module):
 	}
 
 	def __init__(self,
+				 RelDN,
 				 box_roi_pool,
 				 box_head,
 				 box_predictor,
@@ -120,7 +124,10 @@ class RoIHeads(torch.nn.Module):
 				 ):
 		super(RoIHeads, self).__init__()
 
+		batch_size_per_image_so = 64
+		positive_fraction_so = 0.5
 		self.box_similarity = box_ops.box_iou
+		self.RelDN = RelDN
 		# assign ground-truth boxes for each proposal
 		self.proposal_matcher = det_utils.Matcher(
 			fg_iou_thresh,
@@ -131,6 +138,10 @@ class RoIHeads(torch.nn.Module):
 			batch_size_per_image,
 			positive_fraction)
 
+		self.fg_bg_sampler_so = det_utils.BalancedPositiveNegativeSampler(
+			batch_size_per_image_so,
+			positive_fraction_so)
+			
 		if bbox_reg_weights is None:
 			bbox_reg_weights = (10., 10., 5., 5.)
 		self.box_coder = det_utils.BoxCoder(bbox_reg_weights)
@@ -201,9 +212,12 @@ class RoIHeads(torch.nn.Module):
 			labels.append(labels_in_image)
 		return matched_idxs, labels
 
-	def subsample(self, labels):
+	def subsample(self, labels, sample_for="all"):
 		# type: (List[Tensor]) -> List[Tensor]
-		sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
+		if sample_for == "all":
+			sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
+		else:
+			sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler_so(labels)
 		sampled_inds = []
 		for img_idx, (pos_inds_img, neg_inds_img) in enumerate(
 			zip(sampled_pos_inds, sampled_neg_inds)
@@ -248,7 +262,7 @@ class RoIHeads(torch.nn.Module):
 		# get matching gt indices for each proposal
 		matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="all")
 		# sample a fixed proportion of positive-negative proposals
-		sampled_inds = self.subsample(labels)
+		sampled_inds = self.subsample(labels, sample_for="all")								# size 512
 		matched_gt_boxes = []
 		num_images = len(proposals)
 		for img_id in range(num_images):
@@ -265,45 +279,47 @@ class RoIHeads(torch.nn.Module):
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
 
-		# # get matching gt indices for each proposal
-		# sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
-		# sampled_inds = self.subsample(sub_labels)   			#	size 64 --> 32 pos, 32 neg
-		# sub_proposals = proposals.copy()
-		# sub_matched_gt_boxes = []
-		# num_images = len(proposals)
-		# for img_id in range(num_images):
-		# 	img_sampled_inds = sampled_inds[img_id]
-		# 	sub_proposals[img_id] = sub_proposals[img_id][img_sampled_inds]
-		# 	sub_labels[img_id] = sub_labels[img_id][img_sampled_inds]
-		# 	sub_matched_idxs[img_id] = sub_matched_idxs[img_id][img_sampled_inds]
+		# get matching gt indices for each proposal
+		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
+		sampled_inds = self.subsample(sub_labels, sample_for="subject")   			#	size 64 --> 32 pos, 32 neg
+		sub_proposals = proposals.copy()
+		sub_matched_gt_boxes = []
+		num_images = len(proposals)
+		for img_id in range(num_images):
+			img_sampled_inds = sampled_inds[img_id]
+			sub_proposals[img_id] = sub_proposals[img_id][img_sampled_inds]
+			sub_labels[img_id] = sub_labels[img_id][img_sampled_inds]
+			sub_matched_idxs[img_id] = sub_matched_idxs[img_id][img_sampled_inds]
 
-		# 	gt_boxes_in_image = gt_boxes[img_id][:,0,:]
-		# 	if gt_boxes_in_image.numel() == 0:
-		# 		gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
-		# 	sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
+			gt_boxes_in_image = gt_boxes[img_id][:,0,:]
+			if gt_boxes_in_image.numel() == 0:
+				gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
+			sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
 
-		# sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
+		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
+		data_s = {"labels":sub_labels, "proposals":sub_proposals}
 
 
+		# get matching gt indices for each proposal
+		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="objects")
+		sampled_inds = self.subsample(obj_labels, sample_for="object")   				#size 64 --> 32 pos, 32 neg
+		obj_proposals = proposals.copy()
+		obj_matched_gt_boxes = []
+		num_images = len(proposals)
+		for img_id in range(num_images):
+			img_sampled_inds = sampled_inds[img_id]
+			obj_proposals[img_id] = obj_proposals[img_id][img_sampled_inds]
+			obj_labels[img_id] = obj_labels[img_id][img_sampled_inds]
+			obj_matched_idxs[img_id] = obj_matched_idxs[img_id][img_sampled_inds]
 
-		# # get matching gt indices for each proposal
-		# obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="objects")
-		# sampled_inds = self.subsample(obj_labels)   				#size 64 --> 32 pos, 32 neg
-		# obj_proposals = proposals.copy()
-		# obj_matched_gt_boxes = []
-		# num_images = len(proposals)
-		# for img_id in range(num_images):
-		# 	img_sampled_inds = sampled_inds[img_id]
-		# 	obj_proposals[img_id] = obj_proposals[img_id][img_sampled_inds]
-		# 	obj_labels[img_id] = obj_labels[img_id][img_sampled_inds]
-		# 	obj_matched_idxs[img_id] = obj_matched_idxs[img_id][img_sampled_inds]
+			gt_boxes_in_image = gt_boxes[img_id][:,1,:]
+			if gt_boxes_in_image.numel() == 0:
+				gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
+			obj_matched_gt_boxes.append(gt_boxes_in_image[obj_matched_idxs[img_id]])
 
-		# 	gt_boxes_in_image = gt_boxes[img_id][:,1,:]
-		# 	if gt_boxes_in_image.numel() == 0:
-		# 		gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
-		# 	obj_matched_gt_boxes.append(gt_boxes_in_image[obj_matched_idxs[img_id]])
+		obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
+		data_o = {"labels":obj_labels, "proposals":obj_proposals}
 
-		# obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
 
 
 		# labels = []
@@ -346,7 +362,7 @@ class RoIHeads(torch.nn.Module):
 		# gt_predicates =    of size   List[tensor[] of size 512 * 512 ]
 		# return gt_predicates, sub_obj_proposals
 
-		return proposals, matched_idxs, labels, regression_targets
+		return proposals, matched_idxs, labels, regression_targets, data_s, data_o
 
 	def postprocess_detections(self,
 							   class_logits,    # type: Tensor
@@ -427,39 +443,49 @@ class RoIHeads(torch.nn.Module):
 				assert t["boxes"].dtype in floating_point_types, 'target boxes must of float type'
 				assert t["labels"].dtype == torch.int64, 'target labels must of int64 type'
 		if self.training:
-			proposals, matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
+			proposals, matched_idxs, labels, regression_targets, data_s, data_o = self.select_training_samples(proposals, targets)
 			# print(labels[0].shape)
 		else:
 			labels = None
 			regression_targets = None
 			matched_idxs = None
 
-
-		# unioned_relation_box_proposals = 
-		# sub_box_proposals = sub_obj_proposals[:,0,:]
-		# obj_box_proposals = sub_obj_proposals[:,1,:]
-
-		# sub_box_features = self.box_roi_pool(features, sub_box_proposals, image_shapes)
-		# obj_box_features = self.box_roi_pool(features, obj_box_proposals, image_shapes)
-		# rel_box_features = self.box_roi_pool(features, unioned_relation_box_proposals, image_shapes)
-
-		# concat relation_box_candidates, box_features
-		# class_logits = self.relation_box_predictor(box_features)
-
+		# fasterr_cnn branch
 		box_features = self.box_roi_pool(features, proposals, image_shapes)
 		box_features = self.box_head(box_features)
-
 		class_logits, box_regression = self.box_predictor(box_features)
+
+
+
+		# predicate branch
+		box_features = self.box_roi_pool(features, data_s["proposals"], image_shapes)
+		sbj_feat = self.box_head(box_features)
+		box_features = self.box_roi_pool(features, data_o["proposals"], image_shapes)
+		obj_feat = self.box_head(box_features)
+
+		sbj_cls_scores, obj_cls_scores = \
+				self.RelDN(data_s["labels"], data_o["labels"], sbj_feat, obj_feat)
+
 
 		result = torch.jit.annotate(List[Dict[str, torch.Tensor]], [])
 		losses = {}
 		if self.training:
 			assert labels is not None and regression_targets is not None
+
+			loss_cls_sbj, accuracy_cls_sbj = reldn_heads.reldn_losses(sbj_cls_scores, data_s["labels"])
+			print(loss_cls_sbj)
+			print(accuracy_cls_sbj)
+			loss_cls_obj, accuracy_cls_obj = reldn_heads.reldn_losses(obj_cls_scores, data_s['labels'])
+
 			loss_classifier, loss_box_reg = fastrcnn_loss(
 				class_logits, box_regression, labels, regression_targets)
 			losses = {
 				"loss_classifier": loss_classifier,
-				"loss_box_reg": loss_box_reg
+				"loss_box_reg": loss_box_reg,
+				"loss_sbj" : loss_cls_sbj,
+				"acc_sbj"	: accuracy_cls_sbj.item(),
+				"loss_obj" : loss_cls_obj,
+				"acc_obj"	: accuracy_cls_obj.item()
 			}
 		else:
 			boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
@@ -541,7 +567,6 @@ class FasterRCNN(nn.Module):
 		# Define FPN
 		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 		self.rpn = RPN()
-	
 
 		# transform parameters
 		min_size = 800
@@ -551,7 +576,6 @@ class FasterRCNN(nn.Module):
 		self.transform = GeneralizedRCNNTransform(
 			min_size, max_size, image_mean, image_std)
 
-		
 		# Box parameters
 		box_roi_pool=None
 		box_head=None
@@ -585,13 +609,25 @@ class FasterRCNN(nn.Module):
 				representation_size,
 				num_classes)
 
+		# initialize word vectors
+		ds_name =  '/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin'
+		self.obj_vecs, self.prd_vecs = get_obj_prd_vecs(ds_name, dataset_path)
+
+		self.RelDN = reldn_heads.reldn_head(box_head.fc7.out_features * 3, self.obj_vecs, self.prd_vecs)  # concat of SPO
+
 		self.roi_heads = RoIHeads(
 			# Box
+			self.RelDN,
 			box_roi_pool, box_head, box_predictor,
 			box_fg_iou_thresh, box_bg_iou_thresh,
 			box_batch_size_per_image, box_positive_fraction,
 			bbox_reg_weights,
 			box_score_thresh, box_nms_thresh, box_detections_per_img)
+		
+		# # RelPN
+		# self.RelPN = relpn_heads.generic_relpn_outputs()
+		# RelDN
+
 	
 	def flatten_targets(self, targets):
 		gth_list = []
@@ -664,17 +700,26 @@ for epoch in range(1, n_epochs+1):
 	# 	break
 	# break
 	
-		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + losses["loss_classifier"] + losses["loss_box_reg"]
+		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + \
+			losses["loss_classifier"] + losses["loss_box_reg"] + \
+			losses["loss_sbj"] + losses["loss_obj"]
+			
+
 		loss.append(final_loss.item())
 
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
-		print(f'RCNN_Loss    : {final_loss.item()},\n\
-				rpn_cls_loss : {losses["loss_objectness"].item()},\n\
-				rpn_reg_loss : {losses["loss_rpn_box_reg"].item()}\n\
-				box_loss 	 : {losses["loss_box_reg"]}\n\
-				cls_loss     : {losses["loss_classifier"]}')
+		print(f"""RCNN_Loss   : {final_loss.item()},\n\
+				rpn_cls_loss : {losses['loss_objectness'].item()},\n\
+				rpn_reg_loss : {losses['loss_rpn_box_reg'].item()}\n\
+				box_loss 	 : {losses['loss_box_reg']}\n\
+				cls_loss     : {losses['loss_classifier']}\n\
+				sbj_loss	 : {losses['loss_sbj']}\n\
+				obj_loss	 : {losses['loss_obj']}\n\
+				sbj_acc      : {losses['acc_sbj']}\n\
+				obj_acc	     : {losses['acc_obj']}\n\ """
+				)
 
 	loss = torch.tensor(loss, dtype=torch.float32)
 	print(f'loss : {torch.mean(loss)}')

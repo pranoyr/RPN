@@ -80,12 +80,12 @@ b = np.array([[1,2,3,3],
 			[2,2,3,4]])
 
 
-print(rois_union(a,b))
+# print(rois_union(a,b))
 
 # c = []
 # c[0]=1
 
-
+print(torch.Tensor((1,2)).device)
 # import json
 # import os
 # with open(os.path.join('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'json_dataset', 'objects.json'), 'r') as f:
