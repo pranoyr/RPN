@@ -9,7 +9,7 @@ from torch import nn
 from torch.nn import init
 import torch.nn.functional as F
 from torch.autograd import Variable
-import nn as mynn
+# import nn as mynn
 
 
 # import utils.net as net_utils
