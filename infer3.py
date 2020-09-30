@@ -49,60 +49,6 @@ ind_to_class = dict(zip(range(num_classes), classes))
 
 
 
-def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
-	# type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
-	"""
-	Computes the loss for Faster R-CNN.
-
-	Arguments:
-		class_logits (Tensor)
-		box_regression (Tensor)
-		labels (list[BoxList])
-		regression_targets (Tensor)
-
-	Returns:
-		classification_loss (Tensor)
-		box_loss (Tensor)
-	"""
-
-	labels = torch.cat(labels, dim=0)
-	regression_targets = torch.cat(regression_targets, dim=0)
-
-	classification_loss = F.cross_entropy(class_logits, labels)
-
-	# get indices that correspond to the regression targets for
-	# the corresponding ground truth labels, to be used with
-	# advanced indexing
-	sampled_pos_inds_subset = torch.nonzero(labels > 0).squeeze(1)
-	labels_pos = labels[sampled_pos_inds_subset]
-	N, num_classes = class_logits.shape
-	box_regression = box_regression.reshape(N, -1, 4)
-
-	box_loss = det_utils.smooth_l1_loss(
-		box_regression[sampled_pos_inds_subset, labels_pos],
-		regression_targets[sampled_pos_inds_subset],
-		beta=1 / 9,
-		size_average=False,
-	)
-	box_loss = box_loss / labels.numel()
-
-	return classification_loss, box_loss
-
-
-# dataset_train = VOCDataset(root='/home/neuroplex/data/VOCdevkit/VOC2007')
-# dataset_train = VOCDataset(root='/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VOCdevkit2007/VOC2007')
-# dataloader = DataLoader(
-# 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
-
-
-# # dataset_train = VRDDataset('/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD', 'train')
-# dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
-# dataloader = DataLoader(
-# 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
-
-
-
-
 class RoIHeads(torch.nn.Module):
 	__annotations__ = {
 		'box_coder': det_utils.BoxCoder,
@@ -572,9 +518,6 @@ class RPN(nn.Module):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
-
-		targets = self.prepare_gt_for_rpn(targets)
-		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
@@ -642,6 +585,24 @@ class FasterRCNN(nn.Module):
 			box_batch_size_per_image, box_positive_fraction,
 			bbox_reg_weights,
 			box_score_thresh, box_nms_thresh, box_detections_per_img)
+	
+	def flatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,4)
+			gt["labels"] = target["labels"].view(-1)
+			gth_list.append(gt)
+		return gth_list
+	
+	def unflatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,2,4)
+			gt["labels"] = target["labels"].view(-1,2)
+			gth_list.append(gt)
+		return gth_list
 
 	def forward(self, images, targets=None):
 			
@@ -651,12 +612,14 @@ class FasterRCNN(nn.Module):
 			assert len(val) == 2
 			original_image_sizes.append((val[0], val[1]))
 		
-
+		# targets = self.flatten_targets(targets)
 		images, targets = self.transform(images, targets)
+	
 		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
 		
 		if self.training:
 			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps, targets)
+			# targets = self.unflatten_targets(targets)
 			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
 			# detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 			losses = {}
@@ -668,6 +631,7 @@ class FasterRCNN(nn.Module):
 			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes)
 			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 		return detections, losses
+
 
 
 			
@@ -683,7 +647,7 @@ faster_rcnn.load_state_dict(checkpoint['state_dict'])
 print("Model Restored")
 
 
-im = Image.open('/Users/pranoyr/Downloads/vrd_sample/14104516_947fb0cfbb_o.jpg')
+im = Image.open('/Users/pranoyr/Downloads/cycle.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))

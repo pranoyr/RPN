@@ -53,8 +53,34 @@ print(b.view(-1,2))
 
 
 
+input1 = torch.randn(100, 128)
+input2 = torch.randn(100, 128)
+cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
+output = cos(input1, input2)
+print(output.shape)
 
 
+import numpy as np
+
+
+def rois_union(rois1, rois2):
+    assert (rois1[:, 0] == rois2[:, 0]).all()
+    xmin = np.minimum(rois1[:, 1], rois2[:, 1])
+    ymin = np.minimum(rois1[:, 2], rois2[:, 2])
+    xmax = np.maximum(rois1[:, 3], rois2[:, 3])
+    ymax = np.maximum(rois1[:, 4], rois2[:, 4])
+    return np.vstack((rois1[:, 0], xmin, ymin, xmax, ymax)).transpose()
+
+
+
+a = np.array([[1,2,3,3],
+			[1,2,3,4]])
+
+b = np.array([[1,2,3,3],
+			[2,2,3,4]])
+
+
+print(rois_union(a,b))
 
 # c = []
 # c[0]=1

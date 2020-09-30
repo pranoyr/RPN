@@ -1,7 +1,7 @@
 
 
 from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead, AnchorGenerator
-from torchvision.models.detection.faster_rcnn import FasterRCNN
+# from torchvision.models.detection.faster_rcnn import FasterRCNN
 from torchvision.models.detection.faster_rcnn import GeneralizedRCNNTransform
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone 
 # from datasets.pascal_voc import VOCDataset, collater
@@ -150,58 +150,26 @@ class RoIHeads(torch.nn.Module):
 		self.keypoint_roi_pool = keypoint_roi_pool
 		self.keypoint_head = keypoint_head
 		self.keypoint_predictor = keypoint_predictor
-	
-	def assign_targets_to_relation_proposals(self, proposals, gt_boxes, gt_labels):
-		# type: (List[Tensor], List[Tensor], List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
-		# proposals size -> 64 * 64 
-		matched_idxs = []
-		labels = []
-		for proposals_in_image, gt_boxes_in_image, gt_labels_in_image in zip(proposals, gt_boxes, gt_labels):
 
-			if gt_boxes_in_image.numel() == 0:
-				# Background image
-				device = proposals_in_image.device
-				clamped_matched_idxs_in_image = torch.zeros(
-					(proposals_in_image.shape[0],), dtype=torch.int64, device=device
-				)
-				labels_in_image = torch.zeros(
-					(proposals_in_image.shape[0],), dtype=torch.int64, device=device
-				)
-			else:
-				#  set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
-				match_quality_matrix = box_ops.box_iou(gt_boxes_in_image, proposals_in_image)
-				matched_idxs_in_image = self.proposal_matcher(match_quality_matrix)
-
-				clamped_matched_idxs_in_image = matched_idxs_in_image.clamp(min=0)
-
-				labels_in_image = gt_labels_in_image[clamped_matched_idxs_in_image]
-				labels_in_image = labels_in_image.to(dtype=torch.int64)
-
-				# Label background (below the low threshold)
-				bg_inds = matched_idxs_in_image == self.proposal_matcher.BELOW_LOW_THRESHOLD
-				labels_in_image[bg_inds] = 0
-
-				# Label ignore proposals (between low and high thresholds)
-				ignore_inds = matched_idxs_in_image == self.proposal_matcher.BETWEEN_THRESHOLDS
-				labels_in_image[ignore_inds] = -1  # -1 is ignored by sampler
-
-			matched_idxs.append(clamped_matched_idxs_in_image)
-			labels.append(labels_in_image)
-		return matched_idxs, labels
-
-	def assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels, assign_to=None):
+	def assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels, assign_to='all'):
 		# type: (List[Tensor], List[Tensor], List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
 		matched_idxs = []
 		labels = []
 		if assign_to == "subject":
 			slice_index = 0
+		elif assign_to =='all':
+			slice_index = -1
 		else:
 			slice_index = 1
 		for proposals_in_image, gt_boxes_in_image, gt_labels_in_image in zip(proposals, gt_boxes, gt_labels):
 			
-			gt_boxes_in_image = gt_boxes_in_image[:,slice_index,:]
-			gt_labels_in_image = gt_labels_in_image[:,slice_index]
-
+			if slice_index >= 0:
+				gt_boxes_in_image = gt_boxes_in_image[:,slice_index,:]
+				gt_labels_in_image = gt_labels_in_image[:,slice_index]
+			else:
+				gt_boxes_in_image = gt_boxes_in_image.view(-1,4)
+				gt_labels_in_image = gt_labels_in_image.view(-1)
+				
 			if gt_boxes_in_image.numel() == 0:
 				# Background image
 				device = proposals_in_image.device
@@ -269,8 +237,8 @@ class RoIHeads(torch.nn.Module):
 		dtype = proposals[0].dtype
 		device = proposals[0].device
 
-		gt_boxes = [t["boxes"].to(dtype) for t in targets]  # --> shape [List[Tensor of size 10,2,4]]  
-		gt_labels = [t["labels"] for t in targets]				# --> shape [List[Tensor of size 10,2]]
+		gt_boxes = [t["boxes"].to(dtype) for t in targets]  # shape  --> list of [Tensor of size 10,2,4]
+		gt_labels = [t["labels"] for t in targets]   		# shape  --> list of [Tensor of size 10,2]
 		# gt_preds = [t["preds"] for t in targets]
 
 		# append ground-truth bboxes to propos
@@ -278,81 +246,76 @@ class RoIHeads(torch.nn.Module):
 
 
 		# get matching gt indices for each proposal
-		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
-		sampled_inds = self.subsample(sub_labels)   			#	size 64 --> 32 pos, 32 neg
-		sub_proposals = proposals.copy()
-		sub_matched_gt_boxes = []
+		matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="all")
+		# sample a fixed proportion of positive-negative proposals
+		sampled_inds = self.subsample(labels)
+		matched_gt_boxes = []
 		num_images = len(proposals)
 		for img_id in range(num_images):
 			img_sampled_inds = sampled_inds[img_id]
-			sub_proposals[img_id] = sub_proposals[img_id][img_sampled_inds]
-			sub_labels[img_id] = sub_labels[img_id][img_sampled_inds]
-			sub_matched_idxs[img_id] = sub_matched_idxs[img_id][img_sampled_inds]
+			proposals[img_id] = proposals[img_id][img_sampled_inds]
+			labels[img_id] = labels[img_id][img_sampled_inds]
+			matched_idxs[img_id] = matched_idxs[img_id][img_sampled_inds]
 
-			gt_boxes_in_image = gt_boxes[img_id][:,0,:]
+			gt_boxes_in_image = gt_boxes[img_id].view(-1,4)
 			if gt_boxes_in_image.numel() == 0:
 				gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
-			sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
+			matched_gt_boxes.append(gt_boxes_in_image[matched_idxs[img_id]])
 
-		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
-
-
+		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
 
-		# get matching gt indices for each proposal
-		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="objects")
-		sampled_inds = self.subsample(obj_labels)   				#size 64 --> 32 pos, 32 neg
-		obj_proposals = proposals.copy()
-		obj_matched_gt_boxes = []
-		num_images = len(proposals)
-		for img_id in range(num_images):
-			img_sampled_inds = sampled_inds[img_id]
-			obj_proposals[img_id] = obj_proposals[img_id][img_sampled_inds]
-			obj_labels[img_id] = obj_labels[img_id][img_sampled_inds]
-			obj_matched_idxs[img_id] = obj_matched_idxs[img_id][img_sampled_inds]
+		# # get matching gt indices for each proposal
+		# sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
+		# sampled_inds = self.subsample(sub_labels)   			#	size 64 --> 32 pos, 32 neg
+		# sub_proposals = proposals.copy()
+		# sub_matched_gt_boxes = []
+		# num_images = len(proposals)
+		# for img_id in range(num_images):
+		# 	img_sampled_inds = sampled_inds[img_id]
+		# 	sub_proposals[img_id] = sub_proposals[img_id][img_sampled_inds]
+		# 	sub_labels[img_id] = sub_labels[img_id][img_sampled_inds]
+		# 	sub_matched_idxs[img_id] = sub_matched_idxs[img_id][img_sampled_inds]
 
-			gt_boxes_in_image = gt_boxes[img_id][:,1,:]
-			if gt_boxes_in_image.numel() == 0:
-				gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
-			obj_matched_gt_boxes.append(gt_boxes_in_image[obj_matched_idxs[img_id]])
+		# 	gt_boxes_in_image = gt_boxes[img_id][:,0,:]
+		# 	if gt_boxes_in_image.numel() == 0:
+		# 		gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
+		# 	sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
 
-		obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
-
-
-
+		# sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
 
 
 
 		# # get matching gt indices for each proposal
-		# matched_idxs, labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels)
-		# # sample a fixed proportion of positive-negative proposals
-		# sampled_inds = self.subsample(labels)
-		# matched_gt_boxes = []
+		# obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="objects")
+		# sampled_inds = self.subsample(obj_labels)   				#size 64 --> 32 pos, 32 neg
+		# obj_proposals = proposals.copy()
+		# obj_matched_gt_boxes = []
 		# num_images = len(proposals)
 		# for img_id in range(num_images):
 		# 	img_sampled_inds = sampled_inds[img_id]
-		# 	proposals[img_id] = proposals[img_id][img_sampled_inds]
-		# 	labels[img_id] = labels[img_id][img_sampled_inds]
-		# 	matched_idxs[img_id] = matched_idxs[img_id][img_sampled_inds]
+		# 	obj_proposals[img_id] = obj_proposals[img_id][img_sampled_inds]
+		# 	obj_labels[img_id] = obj_labels[img_id][img_sampled_inds]
+		# 	obj_matched_idxs[img_id] = obj_matched_idxs[img_id][img_sampled_inds]
 
-		# 	gt_boxes_in_image = gt_boxes[img_id]
+		# 	gt_boxes_in_image = gt_boxes[img_id][:,1,:]
 		# 	if gt_boxes_in_image.numel() == 0:
 		# 		gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
-		# 	matched_gt_boxes.append(gt_boxes_in_image[matched_idxs[img_id]])
+		# 	obj_matched_gt_boxes.append(gt_boxes_in_image[obj_matched_idxs[img_id]])
 
-		# regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
+		# obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
 
-		labels = []
-		regression_targets = []
-		matched_idxs = []
-		proposals = []
-		for i in range(len(sub_proposals)):
-			proposals.append(torch.cat([sub_proposals[i], obj_proposals[i]]))
-			matched_idxs.append(torch.cat([sub_matched_idxs[i], obj_matched_idxs[i]]))
-			labels.append(torch.cat([sub_labels[i],obj_labels[i]]))
-			regression_targets.append(torch.cat([sub_regression_targets[i],obj_regression_targets[i]]))
+
+		# labels = []
+		# regression_targets = []
+		# matched_idxs = []
+		# proposals = []
+		# for i in range(len(sub_proposals)):
+		# 	proposals.append(torch.cat([sub_proposals[i], obj_proposals[i]]))
+		# 	matched_idxs.append(torch.cat([sub_matched_idxs[i], obj_matched_idxs[i]]))
+		# 	labels.append(torch.cat([sub_labels[i],obj_labels[i]]))
+		# 	regression_targets.append(torch.cat([sub_regression_targets[i],obj_regression_targets[i]]))
 			
-
 
 		# print(proposals[0].shape)
 		# print(matched_idxs[0].shape)
@@ -517,7 +480,6 @@ class RPN(nn.Module):
 	def __init__(self):
 		super(RPN, self).__init__()
 		# Define FPN
-		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 		anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
 		aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
 		# Generate anchor boxes
@@ -535,14 +497,6 @@ class RPN(nn.Module):
 		rpn_bg_iou_thresh = 0.3
 		rpn_batch_size_per_image = 256
 		rpn_positive_fraction = 0.5
-
-		# transform parameters
-		min_size = 800
-		max_size = 1333
-		image_mean = [0.485, 0.456, 0.406]
-		image_std = [0.229, 0.224, 0.225]
-		self.transform = GeneralizedRCNNTransform(
-			min_size, max_size, image_mean, image_std)
 
 		rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train,
 								 testing=rpn_pre_nms_top_n_test)
@@ -565,76 +519,132 @@ class RPN(nn.Module):
 			gth_list.append(gt)
 		return gth_list
 	
-	def forward(self, images, targets=None):
+	def forward(self, images, fpn_feature_maps, targets=None):
 		# l = torch.FloatTensor([[1,2,3,4],[1,2,3,4]])
 		# targets = [{"boxes":l},{"boxes":l}]
 		# targets = [{i: index for i, index in enumerate(l)}]
 
 		targets = self.prepare_gt_for_rpn(targets)
-
-		images, targets = self.transform(images, targets)
-		# fpn_feature_maps = self.fpn(images.tensors.cuda())
-		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
-		# fpn_feature_maps = OrderedDict(
-		#     {i: index for i, index in enumerate(fpn_feature_maps)})
 		
-		# fpn_feature_maps = OrderedDict([('0', fpn_feature_maps)])
-
 		if self.training:
 			boxes, losses = self.rpn(images, fpn_feature_maps, targets)
 		else:
 			boxes, losses = self.rpn(images, fpn_feature_maps)
-		return boxes, losses, fpn_feature_maps, images.image_sizes
-
-
-# rpn = RPN().cuda()
-# Box parameters
-box_roi_pool=None
-box_head=None
-box_predictor=None
-box_score_thresh=0.05
-box_nms_thresh=0.5
-box_detections_per_img=100,
-box_fg_iou_thresh=0.5
-box_bg_iou_thresh=0.5
-box_batch_size_per_image=256
-box_positive_fraction=0.25
-bbox_reg_weights=None
+		return boxes, losses, fpn_feature_maps
 
 
 
-if box_roi_pool is None:
+
+class FasterRCNN(nn.Module):
+	def __init__(self):
+		super(FasterRCNN, self).__init__()
+		# Define FPN
+		self.fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
+		self.rpn = RPN()
+	
+
+		# transform parameters
+		min_size = 800
+		max_size = 1333
+		image_mean = [0.485, 0.456, 0.406]
+		image_std = [0.229, 0.224, 0.225]
+		self.transform = GeneralizedRCNNTransform(
+			min_size, max_size, image_mean, image_std)
+
+		
+		# Box parameters
+		box_roi_pool=None
+		box_head=None
+		box_predictor=None
+		box_score_thresh=0.5
+		box_nms_thresh=0.5
+		box_detections_per_img=100
+		box_fg_iou_thresh=0.5
+		box_bg_iou_thresh=0.5
+		box_batch_size_per_image=64
+		box_positive_fraction=0.5
+		bbox_reg_weights=None
+		num_classes=101
+
+		if box_roi_pool is None:
 			box_roi_pool = MultiScaleRoIAlign(
 				featmap_names=['0', '1', '2', '3'],
 				output_size=7,
 				sampling_ratio=2)
 
-if box_head is None:
-	resolution = box_roi_pool.output_size[0]
-	representation_size = 1024
-	box_head = TwoMLPHead(
-		256 * resolution ** 2,
-		representation_size)
+		if box_head is None:
+			resolution = box_roi_pool.output_size[0]
+			representation_size = 1024
+			box_head = TwoMLPHead(
+				256 * resolution ** 2,
+				representation_size)
 
-if box_predictor is None:
-	representation_size = 1024
-	box_predictor = FastRCNNPredictor(
-		representation_size,
-		num_classes=101)
+		if box_predictor is None:
+			representation_size = 1024
+			box_predictor = FastRCNNPredictor(
+				representation_size,
+				num_classes)
 
-
-rpn = RPN().to(DEVICE)
-roi_heads = RoIHeads(
+		self.roi_heads = RoIHeads(
 			# Box
 			box_roi_pool, box_head, box_predictor,
 			box_fg_iou_thresh, box_bg_iou_thresh,
 			box_batch_size_per_image, box_positive_fraction,
 			bbox_reg_weights,
-			box_score_thresh, box_nms_thresh, box_detections_per_img).to(DEVICE)
+			box_score_thresh, box_nms_thresh, box_detections_per_img)
+	
+	def flatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,4)
+			gt["labels"] = target["labels"].view(-1)
+			gth_list.append(gt)
+		return gth_list
+	
+	def unflatten_targets(self, targets):
+		gth_list = []
+		for target in targets:
+			gt = {}
+			gt["boxes"] = target["boxes"].view(-1,2,4)
+			gt["labels"] = target["labels"].view(-1,2)
+			gth_list.append(gt)
+		return gth_list
+
+	def forward(self, images, targets=None):
+			
+		original_image_sizes = torch.jit.annotate(List[Tuple[int, int]], [])
+		for img in images:
+			val = img.shape[-2:]
+			assert len(val) == 2
+			original_image_sizes.append((val[0], val[1]))
+		
+		targets = self.flatten_targets(targets)
+		images, targets = self.transform(images, targets)
+	
+		fpn_feature_maps = self.fpn(images.tensors.to(DEVICE))
+		
+		if self.training:
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps, targets)
+			targets = self.unflatten_targets(targets)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes, targets)
+			# detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+			losses = {}
+			losses.update(detector_losses)
+			losses.update(rpn_losses)
+		else:
+			losses = {}
+			proposals, rpn_losses, fpn_feature_maps = self.rpn(images, fpn_feature_maps)
+			detections, detector_losses = self.roi_heads(fpn_feature_maps, proposals, images.image_sizes)
+			detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+		return detections, losses
 
 
+			
 
-optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
+faster_rcnn = FasterRCNN().to(DEVICE)
+
+optimizer = optim.Adam(faster_rcnn.parameters(), lr=1e-5)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 # 	optimizer, patience=3, verbose=True)
 # # x = torch.Tensor(2, 3, 224, 224)
@@ -643,41 +653,35 @@ optimizer = optim.Adam(rpn.parameters(), lr=1e-5)
 # print(losses)
 n_epochs = 100
 
-rpn.train()
-roi_heads.train()
+faster_rcnn.train()
 
 for epoch in range(1, n_epochs+1):
 	loss = []
 	for i, data in enumerate(dataloader):
-		images, annotations = data
-		proposals, rpn_losses, features, image_shapes = rpn(images, annotations)
-		results, head_losses = roi_heads(features,     
-				proposals,     
-				image_shapes, 
-				annotations)
+		images, targets = data
+		result, losses = faster_rcnn(images, targets)
+		
 	# 	break
 	# break
-
-		
 	
-		final_loss = rpn_losses["loss_objectness"] + rpn_losses["loss_rpn_box_reg"] + head_losses["loss_classifier"] + head_losses["loss_box_reg"]
+		final_loss = losses["loss_objectness"] + losses["loss_rpn_box_reg"] + losses["loss_classifier"] + losses["loss_box_reg"]
 		loss.append(final_loss.item())
 
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
 		print(f'RCNN_Loss    : {final_loss.item()},\n\
-				rpn_cls_loss : {rpn_losses["loss_objectness"].item()},\n\
-				rpn_reg_loss : {rpn_losses["loss_rpn_box_reg"].item()}\n\
-				box_loss 	 : {head_losses["loss_box_reg"]}\n\
-				cls_loss     : {head_losses["loss_classifier"]}')
+				rpn_cls_loss : {losses["loss_objectness"].item()},\n\
+				rpn_reg_loss : {losses["loss_rpn_box_reg"].item()}\n\
+				box_loss 	 : {losses["loss_box_reg"]}\n\
+				cls_loss     : {losses["loss_classifier"]}')
 
 	loss = torch.tensor(loss, dtype=torch.float32)
 	print(f'loss : {torch.mean(loss)}')
 	# scheduler.step(torch.mean(loss))
 
 
-	state = {'state_dict': rpn.state_dict()}
-	torch.save(state, os.path.join('./snapshots', f'rpn.pth'))
+	state = {'state_dict': faster_rcnn.state_dict()}
+	torch.save(state, os.path.join('./snapshots', f'faster_rcnn.pth'))
 	print("model saved")
 
