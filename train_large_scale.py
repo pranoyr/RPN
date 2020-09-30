@@ -710,8 +710,8 @@ for epoch in range(1, n_epochs+1):
 		optimizer.zero_grad()
 		final_loss.backward()
 		optimizer.step()
-		print(f"""RCNN_Loss   : {final_loss.item()},\n\
-				rpn_cls_loss : {losses['loss_objectness'].item()},\n\
+		print(f"""RCNN_Loss   : {final_loss.item()}\n\
+				rpn_cls_loss : {losses['loss_objectness'].item()}\n\
 				rpn_reg_loss : {losses['loss_rpn_box_reg'].item()}\n\
 				box_loss 	 : {losses['loss_box_reg']}\n\
 				cls_loss     : {losses['loss_classifier']}\n\
