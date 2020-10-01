@@ -647,7 +647,7 @@ faster_rcnn.load_state_dict(checkpoint['state_dict'])
 print("Model Restored")
 
 
-im = Image.open('/Users/pranoyr/Downloads/cycle.jpg')
+im = Image.open('/Users/pranoyr/Downloads//cycle.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))

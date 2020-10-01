@@ -49,3 +49,8 @@ def get_obj_prd_vecs(word_vector_path, dataset_path):
         all_prd_vecs[r] /= len(prd_words)
     logger.info('Predicate label vectors loaded.')
     return all_obj_vecs, all_prd_vecs
+
+
+if __name__ == "__main__":
+    all_obj_vecs, all_prd_vecs = get_obj_prd_vecs('/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin','/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD')
+    print(all_obj_vecs.shape)

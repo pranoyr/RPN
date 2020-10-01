@@ -450,18 +450,22 @@ class RoIHeads(torch.nn.Module):
 			regression_targets = None
 			matched_idxs = None
 
-		# fasterr_cnn branch
+		# faster_rcnn branch
 		box_features = self.box_roi_pool(features, proposals, image_shapes)
 		box_features = self.box_head(box_features)
 		class_logits, box_regression = self.box_predictor(box_features)
-
-
+		
 
 		# predicate branch
 		box_features = self.box_roi_pool(features, data_s["proposals"], image_shapes)
 		sbj_feat = self.box_head(box_features)
 		box_features = self.box_roi_pool(features, data_o["proposals"], image_shapes)
 		obj_feat = self.box_head(box_features)
+
+		#rel_feat = self.Prd_RCNN.Box_Head(blob_conv_prd, rel_ret, rois_name='rel_rois', use_relu=use_relu)
+		#concat_feat = torch.cat((sbj_feat, rel_feat, obj_feat), dim=1)
+		#prd_cls_scores, sbj_cls_scores, obj_cls_scores = \
+            #    self.RelDN(concat_feat, sbj_labels, obj_labels, sbj_feat, obj_feat)
 
 		sbj_cls_scores, obj_cls_scores = \
 				self.RelDN(data_s["labels"], data_o["labels"], sbj_feat, obj_feat)
