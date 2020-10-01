@@ -116,9 +116,6 @@ class reldn_head(nn.Module):
         sbj_vis_embeddings = F.normalize(sbj_vis_embeddings, p=2, dim=1)  # (#bs, 1024)
         sbj_sim_matrix = torch.mm(sbj_vis_embeddings, so_sem_embeddings)  # (#bs, #prd)
         sbj_cls_scores = 3 * sbj_sim_matrix
-
-        print("$#$%#5")
-        print(sbj_cls_scores.shape)
         
         obj_vis_embeddings = F.normalize(obj_vis_embeddings, p=2, dim=1)  # (#bs, 1024)
         obj_sim_matrix = torch.mm(obj_vis_embeddings, so_sem_embeddings)  # (#bs, #prd)
