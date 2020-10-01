@@ -722,7 +722,7 @@ for epoch in range(1, n_epochs+1):
 				sbj_loss	   : {losses['loss_sbj']}\n\
 				obj_loss	   : {losses['loss_obj']}\n\
 				sbj_acc        : {losses['acc_sbj']}\n\
-				obj_acc	       : {losses['acc_obj']}\n\ """
+				obj_acc	       : {losses['acc_obj']}\n """
 				)
 
 	loss = torch.tensor(loss, dtype=torch.float32)
