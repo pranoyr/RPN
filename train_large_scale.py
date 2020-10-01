@@ -478,7 +478,7 @@ class RoIHeads(torch.nn.Module):
 			assert labels is not None and regression_targets is not None
 
 			loss_cls_sbj, accuracy_cls_sbj = reldn_heads.reldn_losses(sbj_cls_scores, data_s["labels"])
-			loss_cls_obj, accuracy_cls_obj = reldn_heads.reldn_losses(obj_cls_scores, data_s['labels'])
+			loss_cls_obj, accuracy_cls_obj = reldn_heads.reldn_losses(obj_cls_scores, data_o['labels'])
 
 			loss_classifier, loss_box_reg = fastrcnn_loss(
 				class_logits, box_regression, labels, regression_targets)
