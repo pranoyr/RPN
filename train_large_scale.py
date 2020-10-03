@@ -63,6 +63,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 	# get indices that correspond to the regression targets for
 	# the corresponding ground truth labels, to be used with
 	# advanced indexing
+	print(labels)
 	sampled_pos_inds_subset = torch.nonzero(labels > 0).squeeze(1)
 	labels_pos = labels[sampled_pos_inds_subset]
 	N, num_classes = class_logits.shape
@@ -316,7 +317,7 @@ class RoIHeads(torch.nn.Module):
 			sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
 
 		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
-		data_s = {"labels":sub_labels, "proposals":sub_proposals}
+		data_s = {"labels":	, "proposals":sub_proposals}
 		data_s = self.sort_descending(data_s)
 
 
