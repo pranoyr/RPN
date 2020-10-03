@@ -63,7 +63,6 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 	# get indices that correspond to the regression targets for
 	# the corresponding ground truth labels, to be used with
 	# advanced indexing
-	print(labels)
 	sampled_pos_inds_subset = torch.nonzero(labels > 0).squeeze(1)
 	labels_pos = labels[sampled_pos_inds_subset]
 	N, num_classes = class_logits.shape
@@ -466,6 +465,7 @@ class RoIHeads(torch.nn.Module):
 				assert t["labels"].dtype == torch.int64, 'target labels must of int64 type'
 		if self.training:
 			proposals, matched_idxs, labels, regression_targets, data_s, data_o = self.select_training_samples(proposals, targets)
+			print(labels)
 			# print(labels[0].shape)
 		else:
 			labels = None
