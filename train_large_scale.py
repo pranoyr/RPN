@@ -320,10 +320,12 @@ class RoIHeads(torch.nn.Module):
 
 		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
 		data_s = {"labels":sub_labels, "proposals":sub_proposals}
-		data_s = self.sort_descending(data_s)
 
 		print(data_s["labels"][0].shape)
 		print(data_s["labels"][0])
+		data_s = self.sort_descending(data_s)
+
+		
 
 		# get matching gt indices for each proposal
 		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="objects")
