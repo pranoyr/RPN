@@ -301,8 +301,6 @@ class RoIHeads(torch.nn.Module):
 		data = self.sort_descending(data)
 		pos_proposals = data['proposals']
 	
-		print(pos_proposals[0].shape)
-
 		# get matching gt indices for each proposal
 		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="subject")
 		sampled_inds = self.subsample(sub_labels, sample_for="subject")   			#	size 64 --> 32 pos, 32 neg
@@ -324,6 +322,7 @@ class RoIHeads(torch.nn.Module):
 		data_s = {"labels":sub_labels, "proposals":sub_proposals}
 		data_s = self.sort_descending(data_s)
 
+		print(data_s["labels"][0])
 
 		# get matching gt indices for each proposal
 		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="objects")
