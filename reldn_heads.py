@@ -79,10 +79,10 @@ class reldn_head(nn.Module):
 
     # spo_feat is concatenation of SPO
     # def forward(self, spo_feat=None, sbj_labels=None, obj_labels=None, sbj_feat=None, obj_feat=None):
-    def forward(self, sbj_labels=None, obj_labels=None, sbj_feat=None, obj_feat=None):
+    def forward(self, sbj_feat=None, obj_feat=None):
         
-        sbj_labels = torch.cat(sbj_labels, dim=0)
-        obj_labels = torch.cat(obj_labels, dim=0)
+        # sbj_labels = torch.cat(sbj_labels, dim=0)
+        # obj_labels = torch.cat(obj_labels, dim=0)
 
         # # device_id = spo_feat.get_device()
         device = sbj_feat.device
@@ -120,6 +120,7 @@ class reldn_head(nn.Module):
         obj_vis_embeddings = F.normalize(obj_vis_embeddings, p=2, dim=1)  # (#bs, 1024)
         obj_sim_matrix = torch.mm(obj_vis_embeddings, so_sem_embeddings)  # (#bs, #prd)
         obj_cls_scores = 3 * obj_sim_matrix
+        
         
         # if not cfg.MODEL.USE_SEM_CONCAT:
         # ds_prd_vecs = self.prd_vecs
@@ -171,9 +172,9 @@ class reldn_head(nn.Module):
         #     assert sbj_labels is not None and obj_labels is not None
         #     prd_cls_scores = prd_cls_scores + self.freq_bias.rel_index_with_labels(torch.stack((sbj_labels, obj_labels), 1))
             
-        if not self.training:
-            sbj_cls_scores = F.softmax(sbj_cls_scores, dim=1)
-            obj_cls_scores = F.softmax(obj_cls_scores, dim=1)
+        # if not self.training:
+        #     sbj_cls_scores = F.softmax(sbj_cls_scores, dim=1)
+        #     obj_cls_scores = F.softmax(obj_cls_scores, dim=1)
             # prd_cls_scores = F.softmax(prd_cls_scores, dim=1)
         
         #return prd_cls_scores, sbj_cls_scores, obj_cls_scores

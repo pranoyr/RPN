@@ -97,3 +97,14 @@ print(torch.Tensor((1,2)).device)
 # # self._classes.extend(self.predicates)
 # _class_to_ind = dict(zip(range(num_classes), classes))
 # print(_class_to_ind)
+
+x = torch.tensor([0,0,0,1,0,2])
+
+y = torch.tensor([0,0,0,1,0,2])
+
+sorted, indices = torch.sort(x, 0, True)
+
+print(sorted)
+
+print(y[indices])
+

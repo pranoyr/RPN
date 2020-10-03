@@ -593,7 +593,7 @@ class FasterRCNN(nn.Module):
 		box_roi_pool=None
 		box_head=None
 		box_predictor=None
-		box_score_thresh=0.5
+		box_score_thresh=0.05
 		box_nms_thresh=0.5
 		box_detections_per_img=100
 		box_fg_iou_thresh=0.5

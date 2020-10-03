@@ -32,7 +32,6 @@ def get_obj_prd_vecs(word_vector_path, dataset_path):
     # represent background with the word 'unknown'
     # obj_cats.insert(0, 'unknown')
     prd_cats.insert(0, 'unknown')
-    obj_cats.insert(0, 'background')
     all_obj_vecs = np.zeros((len(obj_cats), 300), dtype=np.float32)
     for r, obj_cat in enumerate(obj_cats):
         obj_words = obj_cat.split()

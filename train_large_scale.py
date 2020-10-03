@@ -85,8 +85,8 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-# dataset_path = '/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD'
-dataset_path = '/home/neuroplex/code/faster-rcnn/data/VRD'
+dataset_path = '/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD'
+# dataset_path = '/home/neuroplex/code/faster-rcnn/data/VRD'
 dataset_train = VRDDataset(dataset_path, 'train')
 # dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 dataloader = DataLoader(
@@ -235,6 +235,24 @@ class RoIHeads(torch.nn.Module):
 		]
 
 		return proposals
+	
+	def sort_descending(self, data):
+		n_props = []
+		n_labels = []
+		proposals = data['proposals']
+		labels = data['labels']
+		for proposal, label in zip(proposals, labels):
+			sorted_label, indices = torch.sort(label, 0, True)	
+			sorted_proposal = proposal[indices]
+
+			mask = sorted_label > 0
+			sorted_label = sorted_label[mask]
+			sorted_proposal = sorted_proposal[mask]
+
+			n_labels.append(sorted_label)
+			n_props.append(sorted_proposal)
+			
+		return {'labels':n_labels, 'proposals':n_props}
 
 	def check_targets(self, targets):
 		# type: (Optional[List[Dict[str, Tensor]]]) -> None
@@ -299,6 +317,7 @@ class RoIHeads(torch.nn.Module):
 
 		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
 		data_s = {"labels":sub_labels, "proposals":sub_proposals}
+		data_s = self.sort_descending(data_s)
 
 
 		# get matching gt indices for each proposal
@@ -320,6 +339,7 @@ class RoIHeads(torch.nn.Module):
 
 		obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
 		data_o = {"labels":obj_labels, "proposals":obj_proposals}
+		data_o = self.sort_descending(data_o)
 
 
 
@@ -456,20 +476,19 @@ class RoIHeads(torch.nn.Module):
 		box_features = self.box_head(box_features)
 		class_logits, box_regression = self.box_predictor(box_features)
 		
-
 		# predicate branch
-		box_features = self.box_roi_pool(features, data_s["proposals"], image_shapes)
-		sbj_feat = self.box_head(box_features)
-		box_features = self.box_roi_pool(features, data_o["proposals"], image_shapes)
-		obj_feat = self.box_head(box_features)
+		sbj_feat = self.box_roi_pool(features, data_s["proposals"], image_shapes)
+		sbj_feat = self.box_head(sbj_feat)
+		obj_feat = self.box_roi_pool(features, data_o["proposals"], image_shapes)
+		obj_feat = self.box_head(obj_feat)
 
 		#rel_feat = self.Prd_RCNN.Box_Head(blob_conv_prd, rel_ret, rois_name='rel_rois', use_relu=use_relu)
 		#concat_feat = torch.cat((sbj_feat, rel_feat, obj_feat), dim=1)
 		#prd_cls_scores, sbj_cls_scores, obj_cls_scores = \
-            #    self.RelDN(concat_feat, sbj_labels, obj_labels, sbj_feat, obj_feat)
+			#    self.RelDN(concat_feat, sbj_labels, obj_labels, sbj_feat, obj_feat)
 
 		sbj_cls_scores, obj_cls_scores = \
-				self.RelDN(data_s["labels"], data_o["labels"], sbj_feat, obj_feat)
+				self.RelDN(sbj_feat, obj_feat)
 
 
 		result = torch.jit.annotate(List[Dict[str, torch.Tensor]], [])
@@ -613,8 +632,8 @@ class FasterRCNN(nn.Module):
 				num_classes)
 
 		# initialize word vectors
-		# ds_name =  '/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin'
-		ds_name =  '/home/neuroplex/data/GoogleNews-vectors-negative300.bin'
+		ds_name =  '/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin'
+		# ds_name =  '/home/neuroplex/data/GoogleNews-vectors-negative300.bin'
 		self.obj_vecs, self.prd_vecs = get_obj_prd_vecs(ds_name, dataset_path)
 
 		self.RelDN = reldn_heads.reldn_head(box_head.fc7.out_features * 3, self.obj_vecs, self.prd_vecs)  # concat of SPO
