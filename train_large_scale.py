@@ -297,6 +297,7 @@ class RoIHeads(torch.nn.Module):
 
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
+		print(proposals[0].shape)
 
 		# get matching gt indices for each proposal
 		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
