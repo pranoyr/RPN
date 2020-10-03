@@ -317,7 +317,7 @@ class RoIHeads(torch.nn.Module):
 			sub_matched_gt_boxes.append(gt_boxes_in_image[sub_matched_idxs[img_id]])
 
 		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
-		data_s = {"labels":	, "proposals":sub_proposals}
+		data_s = {"labels":sub_labels, "proposals":sub_proposals}
 		data_s = self.sort_descending(data_s)
 
 
