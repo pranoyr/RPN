@@ -322,6 +322,7 @@ class RoIHeads(torch.nn.Module):
 		data_s = {"labels":sub_labels, "proposals":sub_proposals}
 		data_s = self.sort_descending(data_s)
 
+		print(data_s["labels"][0].shape)
 		print(data_s["labels"][0])
 
 		# get matching gt indices for each proposal
