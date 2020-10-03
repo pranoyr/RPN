@@ -297,10 +297,14 @@ class RoIHeads(torch.nn.Module):
 
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
-		print(proposals[0].shape)
+		data_s = {"labels":labels, "proposals":proposals}
+		data_s = self.sort_descending(data_s)
+		pos_proposals = data_s['proposals']
+	
+		print(n_proposals[0].shape)
 
 		# get matching gt indices for each proposal
-		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="subject")
+		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="subject")
 		sampled_inds = self.subsample(sub_labels, sample_for="subject")   			#	size 64 --> 32 pos, 32 neg
 		sub_proposals = proposals.copy()
 		sub_matched_gt_boxes = []
@@ -322,7 +326,7 @@ class RoIHeads(torch.nn.Module):
 
 
 		# get matching gt indices for each proposal
-		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(proposals, gt_boxes, gt_labels, assign_to="objects")
+		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="objects")
 		sampled_inds = self.subsample(obj_labels, sample_for="object")   				#size 64 --> 32 pos, 32 neg
 		obj_proposals = proposals.copy()
 		obj_matched_gt_boxes = []
