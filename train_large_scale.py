@@ -301,7 +301,7 @@ class RoIHeads(torch.nn.Module):
 		data_s = self.sort_descending(data_s)
 		pos_proposals = data_s['proposals']
 	
-		print(n_proposals[0].shape)
+		print(pos_proposals[0].shape)
 
 		# get matching gt indices for each proposal
 		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="subject")
