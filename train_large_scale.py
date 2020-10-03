@@ -85,8 +85,8 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
 # 	dataset_train, num_workers=0, collate_fn=collater, batch_size=1)
 
 
-dataset_path = '/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD'
-# dataset_path = '/home/neuroplex/code/faster-rcnn/data/VRD'
+# dataset_path = '/Users/pranoyr/code/Pytorch/faster-rcnn.pytorch/data/VRD'
+dataset_path = '/home/neuroplex/code/faster-rcnn/data/VRD'
 dataset_train = VRDDataset(dataset_path, 'train')
 # dataset_train = VRDDataset('/home/neuroplex/code/faster-rcnn/data/VRD', 'train')
 dataloader = DataLoader(
@@ -632,8 +632,8 @@ class FasterRCNN(nn.Module):
 				num_classes)
 
 		# initialize word vectors
-		ds_name =  '/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin'
-		# ds_name =  '/home/neuroplex/data/GoogleNews-vectors-negative300.bin'
+		# ds_name =  '/Users/pranoyr/Downloads/GoogleNews-vectors-negative300.bin'
+		ds_name =  '/home/neuroplex/data/GoogleNews-vectors-negative300.bin'
 		self.obj_vecs, self.prd_vecs = get_obj_prd_vecs(ds_name, dataset_path)
 
 		self.RelDN = reldn_heads.reldn_head(box_head.fc7.out_features * 3, self.obj_vecs, self.prd_vecs)  # concat of SPO
