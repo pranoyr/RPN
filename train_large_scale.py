@@ -235,24 +235,39 @@ class RoIHeads(torch.nn.Module):
 		]
 
 		return proposals
-	
-	def sort_descending(self, data):
+
+	def extract_positive_proposals(self, data):
 		n_props = []
 		n_labels = []
 		proposals = data['proposals']
 		labels = data['labels']
 		for proposal, label in zip(proposals, labels):
-			sorted_label, indices = torch.sort(label, 0, True)	
-			sorted_proposal = proposal[indices]
+			mask = label > 0
+			pos_label = label[mask]
+			pos_proposal = proposal[mask]
 
-			mask = sorted_label > 0
-			sorted_label = sorted_label[mask]
-			sorted_proposal = sorted_proposal[mask]
-
-			n_labels.append(sorted_label)
-			n_props.append(sorted_proposal)
+			n_labels.append(pos_label)
+			n_props.append(pos_proposal)
 			
 		return {'labels':n_labels, 'proposals':n_props}
+
+	# def sort_descending(self, data):
+	# 	n_props = []
+	# 	n_labels = []
+	# 	proposals = data['proposals']
+	# 	labels = data['labels']
+	# 	for proposal, label in zip(proposals, labels):
+	# 		sorted_label, indices = torch.sort(label, 0, True)	
+	# 		sorted_proposal = proposal[indices]
+
+	# 		mask = sorted_label > 0
+	# 		sorted_label = sorted_label[mask]
+	# 		sorted_proposal = sorted_proposal[mask]
+
+	# 		n_labels.append(sorted_label)
+	# 		n_props.append(sorted_proposal)
+			
+	# 	return {'labels':n_labels, 'proposals':n_props}
 
 	def check_targets(self, targets):
 		# type: (Optional[List[Dict[str, Tensor]]]) -> None
@@ -298,18 +313,18 @@ class RoIHeads(torch.nn.Module):
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
 		data = {"labels":labels, "proposals":proposals}
-		data = self.sort_descending(data)
+		data = self.extract_positive_proposals(data)
 		pos_proposals = data['proposals']
 	
 		# get matching gt indices for each proposal
 		sub_matched_idxs, sub_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="subject")
 		sampled_inds = self.subsample(sub_labels, sample_for="subject")   			#	size 64 --> 32 pos, 32 neg
-		sub_proposals = proposals.copy()
+		sub_proposals = pos_proposals.copy()
 		sub_matched_gt_boxes = []
 		num_images = len(proposals)
 		for img_id in range(num_images):
 			img_sampled_inds = sampled_inds[img_id]
-			sub_proposals[img_id] = sub_proposals[img_id][img_sampled_inds]
+			sub_proposals[img_id] = pos_proposals[img_id][img_sampled_inds]
 			sub_labels[img_id] = sub_labels[img_id][img_sampled_inds]
 			sub_matched_idxs[img_id] = sub_matched_idxs[img_id][img_sampled_inds]
 
@@ -320,19 +335,19 @@ class RoIHeads(torch.nn.Module):
 
 		sub_regression_targets = self.box_coder.encode(sub_matched_gt_boxes, sub_proposals)
 		data_s = {"labels":sub_labels, "proposals":sub_proposals}
-		data_s = self.sort_descending(data_s)
+		data_s = self.extract_positive_proposals(data_s)
 
 		
 
 		# get matching gt indices for each proposal
 		obj_matched_idxs, obj_labels = self.assign_targets_to_proposals(pos_proposals, gt_boxes, gt_labels, assign_to="objects")
 		sampled_inds = self.subsample(obj_labels, sample_for="object")   				#size 64 --> 32 pos, 32 neg
-		obj_proposals = proposals.copy()
+		obj_proposals = pos_proposals.copy()
 		obj_matched_gt_boxes = []
 		num_images = len(proposals)
 		for img_id in range(num_images):
 			img_sampled_inds = sampled_inds[img_id]
-			obj_proposals[img_id] = obj_proposals[img_id][img_sampled_inds]
+			obj_proposals[img_id] = pos_proposals[img_id][img_sampled_inds]
 			obj_labels[img_id] = obj_labels[img_id][img_sampled_inds]
 			obj_matched_idxs[img_id] = obj_matched_idxs[img_id][img_sampled_inds]
 
@@ -343,7 +358,7 @@ class RoIHeads(torch.nn.Module):
 
 		obj_regression_targets = self.box_coder.encode(obj_matched_gt_boxes, obj_proposals)
 		data_o = {"labels":obj_labels, "proposals":obj_proposals}
-		data_o = self.sort_descending(data_o)
+		data_o = self.extract_positive_proposals(data_o)
 
 
 
