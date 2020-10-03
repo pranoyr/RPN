@@ -465,7 +465,6 @@ class RoIHeads(torch.nn.Module):
 				assert t["labels"].dtype == torch.int64, 'target labels must of int64 type'
 		if self.training:
 			proposals, matched_idxs, labels, regression_targets, data_s, data_o = self.select_training_samples(proposals, targets)
-			print(labels)
 			# print(labels[0].shape)
 		else:
 			labels = None
