@@ -297,9 +297,9 @@ class RoIHeads(torch.nn.Module):
 
 		regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
 
-		data_s = {"labels":labels, "proposals":proposals}
-		data_s = self.sort_descending(data_s)
-		pos_proposals = data_s['proposals']
+		data = {"labels":labels, "proposals":proposals}
+		data = self.sort_descending(data)
+		pos_proposals = data['proposals']
 	
 		print(pos_proposals[0].shape)
 
