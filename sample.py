@@ -3,18 +3,18 @@
 # loss = torch.tensor(loss, dtype=torch.float32)
 # print(f'loss : {loss.mean()}')
 import torch
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
-fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
+# from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+# fpn = resnet_fpn_backbone(backbone_name='resnet101', pretrained=True)
 
 
 
-x = torch.Tensor(2,3,224,224)
-x = fpn(x)
-print(x['1'].shape)
+# x = torch.Tensor(2,3,224,224)
+# x = fpn(x)
+# print(x['1'].shape)
 
 
-for s, s_orig in zip([1,2], [1,2]):
-	s=1
+# for s, s_orig in zip([1,2], [1,2]):
+# 	s=1
 
 
 
@@ -98,13 +98,60 @@ print(torch.Tensor((1,2)).device)
 # _class_to_ind = dict(zip(range(num_classes), classes))
 # print(_class_to_ind)
 
-x = torch.tensor([0,0,0,1,0,2])
 
-y = torch.tensor([0,0,0,1,0,2])
+def remove_self_pairs(det_size, sbj_inds, obj_inds):
+	mask = np.ones(sbj_inds.shape[0], dtype=bool)
+	for i in range(det_size):
+		mask[i + det_size * i] = False
+	keeps = np.where(mask)[0]
+	sbj_inds = sbj_inds[keeps]
+	obj_inds = obj_inds[keeps]
+	return sbj_inds, obj_inds
 
-sorted, indices = torch.sort(x, 0, True)
 
-print(sorted)
 
-print(y[indices])
+sbj_tensor = torch.tensor([1,2,3])
+obj_tensor = torch.tensor([1,2,3,4])
 
+sbj_inds = np.repeat(np.arange(sbj_tensor.shape[0]), obj_tensor.shape[0])
+obj_inds = np.tile(np.arange(obj_tensor.shape[0]), sbj_tensor.shape[0])
+
+
+mask = sbj_inds != obj_inds
+
+# sbj_inds, obj_inds = remove_self_pairs(sbj_tensor.shape[0], sbj_inds, obj_inds)
+
+
+print(sbj_inds[mask])
+print(obj_inds[mask])
+
+# # preds = torch.tensor([11,22,33])
+
+# a = torch.tensor([1,2,3])
+# b = torch.tensor([4,2,4])
+
+# a[a!=b] = -1
+
+# print(a)
+# # print(sorted)
+
+# # print(y[indices])
+
+
+# a = torch.tensor((1, 2, -1))
+# b = torch.tensor((3, 0, 4))
+# torch.minimum(a, b)
+
+
+
+# s = ["car","bike"]
+# s.insert(0,'background')
+
+# print(s)
+
+
+a = torch.tensor([[1,2,3,4],
+				[1,2,3,4]])
+
+
+print(a-1)

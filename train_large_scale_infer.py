@@ -377,6 +377,70 @@ class RoIHeads(torch.nn.Module):
 		# return gt_predicates, sub_obj_proposals
 
 		return proposals, matched_idxs, labels, regression_targets, data_s, data_o
+	def postprocess_detections_spo(self,
+							   class_logits,    # type: Tensor
+							   sbj_cls_scores,
+							   box_regression,  # type: Tensor
+							   proposals,       # type: List[Tensor]
+							   image_shapes     # type: List[Tuple[int, int]]
+							   ):
+		# type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
+		device = class_logits.device
+		num_classes = class_logits.shape[-1]
+
+		boxes_per_image = [boxes_in_image.shape[0] for boxes_in_image in proposals]
+		pred_boxes = self.box_coder.decode(box_regression, proposals)
+
+		pred_scores = F.softmax(class_logits, -1)
+		sbj_cls_scores = F.softmax(sbj_cls_scores, -1)
+
+		pred_boxes_list = pred_boxes.split(boxes_per_image, 0)
+		pred_scores_list = pred_scores.split(boxes_per_image, 0)
+		sbj_cls_scores_list = sbj_cls_scores.split(boxes_per_image, 0)
+
+
+		all_boxes = []
+		all_scores = []
+		all_labels = []
+		for boxes, scores, sbj_scores, image_shape in zip(pred_boxes_list, pred_scores_list, sbj_cls_scores_list, image_shapes):
+			boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+
+			# create labels for each prediction
+			labels = torch.arange(num_classes, device=device)
+			labels = labels.view(1, -1).expand_as(scores)
+
+			# remove predictions with the background label
+			boxes = boxes[:, 1:]
+			scores = scores[:, 1:]
+			sbj_scores = sbj_scores[:, 1:]
+			labels = labels[:, 1:]
+
+			# batch everything, by making every class prediction be a separate instance
+			boxes = boxes.reshape(-1, 4)
+			scores = scores.reshape(-1)
+			sbj_scores = sbj_scores.reshape(-1)
+			labels = labels.reshape(-1)
+
+			# remove low scoring boxes
+			inds = torch.nonzero(scores > self.score_thresh).squeeze(1)
+			boxes, scores, sbj_scores, labels = boxes[inds], scores[inds], sbj_scores[inds], labels[inds]
+
+			# remove empty boxes
+			keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+			boxes, scores, sbj_scores,labels = boxes[keep], scores[keep], sbj_scores[keep], labels[keep]
+
+			# non-maximum suppression, independently done per class
+			keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+			# keep only topk scoring predictions
+			keep = keep[:self.detections_per_img]
+			boxes, scores, sbj_scores, labels = boxes[keep], scores[keep], sbj_scores[keep],  labels[keep]
+
+			all_boxes.append(boxes)
+			all_scores.append(sbj_scores)
+			all_labels.append(labels)
+
+		return all_boxes, all_scores, all_labels
+
 
 	def postprocess_detections(self,
 							   class_logits,    # type: Tensor
@@ -482,7 +546,7 @@ class RoIHeads(torch.nn.Module):
 		#prd_cls_scores, sbj_cls_scores, obj_cls_scores = \
             #    self.RelDN(concat_feat, sbj_labels, obj_labels, sbj_feat, obj_feat)
 
-		class_logits, obj_cls_scores = \
+		sbj_cls_scores, obj_cls_scores = \
 				self.RelDN(box_features, box_features)
 
 
@@ -505,7 +569,8 @@ class RoIHeads(torch.nn.Module):
 				"acc_obj"	: accuracy_cls_obj.item()
 			}
 		else:
-			boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+			#boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+			boxes, scores, labels = self.postprocess_detections_spo(class_logits, sbj_cls_scores, box_regression, proposals, image_shapes)
 			num_images = len(boxes)
 			for i in range(num_images):
 				result.append(
@@ -597,7 +662,7 @@ class FasterRCNN(nn.Module):
 		box_roi_pool=None
 		box_head=None
 		box_predictor=None
-		box_score_thresh=0.1
+		box_score_thresh=0.5
 		box_nms_thresh=0.5
 		box_detections_per_img=100
 		box_fg_iou_thresh=0.5
@@ -709,7 +774,7 @@ faster_rcnn.load_state_dict(checkpoint['state_dict'], strict=True)
 print("Model Restored")
 
 
-im = Image.open('/Users/pranoyr/Downloads/cycle.jpg')
+im = Image.open('/Users/pranoyr/Downloads/bike.jpg')
 img = np.array(im)
 draw = img.copy()
 # draw = cv2.resize(draw,(1344,768))
